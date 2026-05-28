@@ -132,7 +132,6 @@ const els = {
   planMapViewBtn: document.getElementById('planMapViewBtn'),
   planGridViewBtn: document.getElementById('planGridViewBtn'),
   sidebarZoneStats: document.getElementById('sidebarZoneStats'),
-  mobileQuickBar: document.getElementById('mobileQuickBar'),
   searchInput: document.getElementById('searchInput'),
   zoneFilter: document.getElementById('zoneFilter'),
   statusFilter: document.getElementById('statusFilter'),
@@ -889,7 +888,6 @@ function handleResize() {
     setViewMode('compact');
   }
   syncPlanDisplaySize();
-  renderMobileQuickBar();
 }
 
 function updateModeBadge() {
@@ -914,6 +912,19 @@ function bindSidebar() {
   els.sidebarToggle?.addEventListener('click', () => setSidebarOpen(true));
   els.sidebarClose?.addEventListener('click', () => setSidebarOpen(false));
   els.sidebarBackdrop?.addEventListener('click', () => setSidebarOpen(false));
+  bindWorkspaceHeaderScroll();
+}
+
+function bindWorkspaceHeaderScroll() {
+  const header = document.querySelector('.workspace-header');
+  if (!header) return;
+
+  const update = () => {
+    header.classList.toggle('is-scrolled', window.scrollY > 16);
+  };
+
+  window.addEventListener('scroll', update, { passive: true });
+  update();
 }
 
 function switchTab(tabId) {
@@ -926,7 +937,6 @@ function switchTab(tabId) {
   els.workspaceTitle.textContent = tabMeta[tabId].title;
   els.workspaceSubtitle.textContent = tabMeta[tabId].subtitle;
   closeAllSwipeRows();
-  renderMobileQuickBar();
 }
 
 function setViewMode(mode) {
@@ -1067,7 +1077,6 @@ function renderAll() {
   renderZonesBoard();
   renderBoatGrid();
   renderProfiles();
-  renderMobileQuickBar();
   syncPlanGridVisibility();
   updatePlanViewButtons();
   updateViewModeButtons();
@@ -1105,7 +1114,6 @@ function setFocusZone(zoneId, scrollToGrid = false) {
   renderSitePlan();
   renderSidebarZoneStats();
   renderZonesBoard();
-  renderMobileQuickBar();
   syncPlanGridVisibility();
 
   if (scrollToGrid && state.focusZone) {
@@ -1140,7 +1148,6 @@ function selectSlot(zoneId, slotNumber, openModal = false) {
   renderSitePlan();
   renderSidebarZoneStats();
   renderZonesBoard();
-  renderMobileQuickBar();
   syncPlanGridVisibility();
   if (openModal && (boat || canManageBoats())) {
     openBoatModal(boat, state.selectedSlot);
@@ -1333,33 +1340,6 @@ function renderZonesBoard() {
     `;
     })
     .join('');
-}
-
-function renderMobileQuickBar() {
-  if (!els.mobileQuickBar) return;
-  const showOnMobile =
-    window.innerWidth <= MOBILE_BREAKPOINT &&
-    state.activeTab === 'dashboardTab' &&
-    !els.appView.classList.contains('hidden');
-  els.mobileQuickBar.classList.toggle('hidden', !showOnMobile);
-
-  const zone = getZone(state.selectedSlot.zone_id);
-  const boat = getBoatBySlot(state.selectedSlot.zone_id, state.selectedSlot.slot_number);
-  const detail = boat
-    ? `${escapeHtml(displayBoatName(boat))} — ${escapeHtml(displayOwnerName(boat))}`
-  : 'Emplacement libre';
-  els.mobileQuickBar.innerHTML = `
-    <div>
-      <strong>${escapeHtml(formatEmplacement(state.selectedSlot.zone_id, state.selectedSlot.slot_number))}</strong>
-      <div class="subtle-text">${escapeHtml(zone.name)}</div>
-      <div class="subtle-text">${detail}</div>
-    </div>
-    <div class="mobile-quick-actions">
-      ${boat ? '<button id="mobileQuickOpen" class="secondary-button small-button">Fiche</button>' : canManageBoats() ? '<button id="mobileQuickCreate" class="primary-button small-button">Créer</button>' : ''}
-    </div>
-  `;
-  document.getElementById('mobileQuickOpen')?.addEventListener('click', () => openBoatModal(boat, state.selectedSlot));
-  document.getElementById('mobileQuickCreate')?.addEventListener('click', () => openBoatModal(null, state.selectedSlot));
 }
 
 function matchesFilters(boat) {
@@ -1797,7 +1777,6 @@ function handleBoatGridClick(event) {
     state.selectedSlot = { zone_id: boat.zone_id, slot_number: boat.slot_number };
     renderSitePlan();
     renderZonesBoard();
-    renderMobileQuickBar();
     openBoatModal(boat, state.selectedSlot);
   }
 
