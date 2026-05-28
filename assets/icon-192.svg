@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0f3a5f"/>
+  <circle cx="396" cy="120" r="44" fill="#ffd97b"/>
+  <path d="M106 330h186l54 64H72z" fill="#ffffff" opacity="0.98"/>
+  <path d="M236 118v214" stroke="#ffd97b" stroke-width="18" stroke-linecap="round"/>
+  <path d="M236 130l120 70H236z" fill="#dff1ff"/>
+  <path d="M236 148l-84 60h84z" fill="#7fc0e7"/>
+  <path d="M76 398c24 0 24 14 48 14s24-14 48-14 24 14 48 14 24-14 48-14 24 14 48 14 24-14 48-14 24 14 48 14" fill="none" stroke="#59a9db" stroke-width="18" stroke-linecap="round"/>
+  <text x="256" y="456" text-anchor="middle" font-family="Arial, sans-serif" font-size="56" font-weight="700" fill="#ffffff">CNH</text>
+</svg>

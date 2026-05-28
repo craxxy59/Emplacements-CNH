@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d2740" />
+    <meta
+      name="description"
+      content="Application PWA professionnelle de gestion des emplacements bateaux du Club Nautique d'Hardelot Plage."
+    />
+    <title>CNH • Marina Manager</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <div id="authView" class="auth-layout">
+      <section class="auth-hero">
+        <div class="brand-lockup">
+          <img src="assets/logo-cnh-real.jpg" alt="CNH" class="brand-logo" />
+          <div>
+            <p class="eyebrow">Club Nautique d’Hardelot Plage</p>
+            <h1>Gestion premium des bateaux & emplacements</h1>
+            <p class="hero-text">
+              PWA professionnelle du CNH, optimisée mobile, avec compte administrateur,
+              changement de mot de passe au premier accès et synchronisation en ligne.
+            </p>
+          </div>
+        </div>
+
+        <section class="hero-club-strip glass-card">
+          <div class="club-strip-grid">
+            <div>
+              <span class="mini-label light-label">Adresse</span>
+              <strong>Base de glisse Georges Pernoud</strong>
+              <div>62152 Neufchâtel Hardelot</div>
+            </div>
+            <div>
+              <span class="mini-label light-label">Contact</span>
+              <strong><a href="tel:0391214432">03 91 21 44 32</a></strong>
+              <div><a href="mailto:contact@cnhardelot.fr">contact@cnhardelot.fr</a></div>
+            </div>
+            <div>
+              <span class="mini-label light-label">Club</span>
+              <strong>Depuis 1966</strong>
+              <div>Voile & activités nautiques</div>
+            </div>
+          </div>
+          <div class="hero-link-row">
+            <a class="ghost-link" href="https://basedeglissehardelot.fr/activites/le-club-nautique-dhardelot/" target="_blank" rel="noreferrer">Site du club</a>
+            <a class="ghost-link" href="https://www.ville-neufchatel-hardelot.fr/loisirs-et-decouvertes/webcam/" target="_blank" rel="noreferrer">Webcam</a>
+            <a class="ghost-link" href="https://marine.meteoconsult.fr/meteo-marine/bulletin-detaille/spot-de-glisse-428/previsions-meteo-hardelot-plage-aujourdhui" target="_blank" rel="noreferrer">Météo marine</a>
+          </div>
+        </section>
+
+        <div class="hero-panels">
+          <article class="glass-card hero-feature-card">
+            <span class="feature-kicker">Pensée pour le club</span>
+            <h2>Une vue claire du parc bateaux</h2>
+            <ul class="feature-list">
+              <li>Plan interactif des 46 places</li>
+              <li>Fiches complètes avec photo</li>
+              <li>Recherche instantanée</li>
+              <li>Actions rapides par swipe sur mobile</li>
+              <li>Mode compact ultra lisible</li>
+              <li>Mode démo local + sync Supabase</li>
+            </ul>
+          </article>
+
+          <article class="glass-card hero-info-card">
+            <h3>Architecture choisie</h3>
+            <p><strong>Synchronisation :</strong> Supabase</p>
+            <p><strong>Hébergement conseillé :</strong> Netlify</p>
+            <p><strong>Rôles :</strong> admin, équipe, lecture seule</p>
+            <p><strong>Style :</strong> nautique premium CNH</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="auth-panel">
+        <div class="auth-card panel-surface">
+          <div class="panel-head compact-head">
+            <div>
+              <p class="eyebrow">Connexion sécurisée</p>
+              <h2>Accéder à l’application</h2>
+              <p id="modeBadge" class="subtle-text">Chargement du mode d’application…</p>
+            </div>
+          </div>
+
+          <form id="loginForm" class="stack-form">
+            <div class="field-group">
+              <label for="loginEmail">Email</label>
+              <input id="loginEmail" name="loginEmail" type="email" autocomplete="username" required placeholder="admin@cnh.fr" />
+            </div>
+            <div class="field-group">
+              <label for="loginPassword">Mot de passe</label>
+              <input id="loginPassword" name="loginPassword" type="password" autocomplete="current-password" required placeholder="Votre mot de passe" />
+            </div>
+            <button type="submit" class="primary-button wide">Se connecter</button>
+          </form>
+
+          <div id="demoHelp" class="demo-help hidden">
+            <h3>Comptes de démonstration</h3>
+            <div class="demo-grid">
+              <div class="mini-card">
+                <strong>Admin</strong>
+                <span>admin@cnh.local</span>
+                <code>Admin1234!</code>
+              </div>
+              <div class="mini-card">
+                <strong>Équipe</strong>
+                <span>equipe@cnh.local</span>
+                <code>Staff1234!</code>
+              </div>
+              <div class="mini-card">
+                <strong>Lecture</strong>
+                <span>lecture@cnh.local</span>
+                <code>View1234!</code>
+              </div>
+            </div>
+            <small>Le compte admin doit changer son mot de passe à la première connexion.</small>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="appView" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <div class="brand-mini">
+            <img src="assets/logo-cnh-real.jpg" alt="CNH" class="sidebar-logo" />
+            <div>
+              <p class="eyebrow">CNH</p>
+              <strong>Marina Manager</strong>
+            </div>
+          </div>
+
+          <div class="sidebar-user panel-dark">
+            <div>
+              <small>Connecté en tant que</small>
+              <strong id="userDisplayName">—</strong>
+              <div class="muted-line" id="userDisplayRole">—</div>
+            </div>
+            <span id="syncPill" class="sync-pill">—</span>
+          </div>
+
+          <nav class="sidebar-nav" aria-label="Navigation principale">
+            <button class="nav-button active" data-tab-target="dashboardTab">Tableau de bord</button>
+            <button class="nav-button" data-tab-target="fleetTab">Bateaux</button>
+            <button class="nav-button admin-only" data-tab-target="adminTab">Administration</button>
+          </nav>
+        </div>
+
+        <div class="sidebar-bottom panel-dark">
+          <div id="sidebarZoneStats" class="sidebar-zone-stats"></div>
+          <button id="logoutButton" class="ghost-button wide light-ghost">Déconnexion</button>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="workspace-header">
+          <div>
+            <p class="eyebrow">Pilotage du parc nautique</p>
+            <h2 id="workspaceTitle">Tableau de bord</h2>
+            <p class="subtle-text" id="workspaceSubtitle">
+              Vue temps réel des emplacements, des bateaux et des données propriétaires.
+            </p>
+          </div>
+          <div class="header-actions">
+            <button id="refreshButton" class="secondary-button">Synchroniser</button>
+            <button id="exportButton" class="secondary-button">Exporter JSON</button>
+            <label for="importInput" class="secondary-button clickable manage-only">Importer</label>
+            <input id="importInput" type="file" accept="application/json" hidden />
+            <button id="openCreateBoatButton" class="primary-button manage-only">Nouvelle fiche</button>
+          </div>
+        </header>
+
+        <section class="club-quickbar panel-surface">
+          <div class="quickbar-item">
+            <span class="mini-label">Club</span>
+            <strong>CNH • Hardelot Plage</strong>
+            <small>Base de glisse Georges Pernoud</small>
+          </div>
+          <div class="quickbar-item">
+            <span class="mini-label">Téléphone</span>
+            <a href="tel:0391214432">03 91 21 44 32</a>
+            <small>Contact direct club</small>
+          </div>
+          <div class="quickbar-item">
+            <span class="mini-label">Email</span>
+            <a href="mailto:contact@cnhardelot.fr">contact@cnhardelot.fr</a>
+            <small>Support / infos membres</small>
+          </div>
+          <div class="quickbar-item links">
+            <span class="mini-label">Accès rapides</span>
+            <div class="quick-links">
+              <a href="https://basedeglissehardelot.fr/activites/le-club-nautique-dhardelot/" target="_blank" rel="noreferrer">Site</a>
+              <a href="https://www.ville-neufchatel-hardelot.fr/loisirs-et-decouvertes/webcam/" target="_blank" rel="noreferrer">Webcam</a>
+              <a href="https://marine.meteoconsult.fr/meteo-marine/bulletin-detaille/spot-de-glisse-428/previsions-meteo-hardelot-plage-aujourdhui" target="_blank" rel="noreferrer">Météo</a>
+            </div>
+          </div>
+        </section>
+
+        <section class="stats-row" aria-label="Indicateurs CNH">
+          <article class="stat-card ocean">
+            <span>Places totales</span>
+            <strong id="statTotalSpots">46</strong>
+            <small>Plan de référence</small>
+          </article>
+          <article class="stat-card green">
+            <span>Places occupées</span>
+            <strong id="statOccupied">0</strong>
+            <small>Occupation instantanée</small>
+          </article>
+          <article class="stat-card sand">
+            <span>Places libres</span>
+            <strong id="statFree">0</strong>
+            <small>Disponibilité restante</small>
+          </article>
+          <article class="stat-card violet">
+            <span>Fiches complètes</span>
+            <strong id="statComplete">0%</strong>
+            <small>Qualité des données</small>
+          </article>
+        </section>
+
+        <section id="dashboardTab" class="tab-panel active">
+          <div class="dashboard-grid">
+            <section class="panel-surface main-panel plan-hub">
+              <div class="panel-head sticky-mobile-head plan-hub-head">
+                <div>
+                  <h3>Plan du site — 46 emplacements</h3>
+                  <p>Photo aérienne du CNH avec zones A, B et C. Cliquez une zone ou une place pour gérer l’occupation.</p>
+                </div>
+                <div class="plan-toolbar">
+                  <div class="plan-view-toggle" role="group" aria-label="Mode d’affichage du plan">
+                    <button type="button" id="planMapViewBtn" class="plan-view-btn active" data-plan-view="map">Plan aérien</button>
+                    <button type="button" id="planGridViewBtn" class="plan-view-btn" data-plan-view="grid">Grille</button>
+                  </div>
+                  <div class="legend-row">
+                    <span class="legend-pill free">Libre</span>
+                    <span class="legend-pill occupied">Occupé</span>
+                    <span class="legend-pill selected">Sélectionné</span>
+                  </div>
+                </div>
+              </div>
+
+              <div id="sitePlanSection" class="site-plan-section">
+                <div id="sitePlanMap" class="site-plan-map" aria-label="Plan interactif des emplacements CNH"></div>
+                <div id="zoneFocusBar" class="zone-focus-bar hidden">
+                  <div class="zone-focus-info">
+                    <strong id="zoneFocusTitle">—</strong>
+                    <span id="zoneFocusMeta" class="zone-focus-meta">—</span>
+                  </div>
+                  <div class="zone-focus-actions">
+                    <button type="button" id="zoneFocusAllBtn" class="ghost-button small-button">Toutes les zones</button>
+                    <button type="button" id="zoneFocusGridBtn" class="secondary-button small-button">Voir la grille</button>
+                  </div>
+                </div>
+              </div>
+
+              <div id="zonesBoard" class="zones-board"></div>
+            </section>
+
+            <section class="right-stack">
+              <article class="panel-surface focus-panel mobile-first-panel">
+                <div class="panel-head compact-head">
+                  <div>
+                    <h3>Emplacement sélectionné</h3>
+                    <p>Détail de la place et de son occupation.</p>
+                  </div>
+                </div>
+                <div id="selectedSlotCard" class="selected-slot-card empty">Sélectionnez une place pour afficher son détail.</div>
+              </article>
+
+              <article class="panel-surface activity-panel mobile-first-panel">
+                <div class="panel-head compact-head">
+                  <div>
+                    <h3>Résumé rapide</h3>
+                    <p>Etat général du parc nautique.</p>
+                  </div>
+                </div>
+                <div id="summaryCards" class="summary-cards"></div>
+              </article>
+            </section>
+          </div>
+        </section>
+
+        <section id="fleetTab" class="tab-panel">
+          <div class="panel-surface">
+            <div class="panel-head sticky-mobile-head fleet-head">
+              <div>
+                <h3>Registre des bateaux</h3>
+                <p>Recherche dynamique, filtres, édition rapide et accès direct à l’emplacement.</p>
+              </div>
+              <div class="view-mode-toggle" role="group" aria-label="Mode d'affichage">
+                <button id="cardModeButton" class="mode-toggle-button" type="button">Cartes</button>
+                <button id="compactModeButton" class="mode-toggle-button" type="button">Compact</button>
+              </div>
+            </div>
+
+            <div class="toolbar-grid sticky-toolbar-mobile">
+              <div class="field-group grow">
+                <label for="searchInput">Recherche</label>
+                <input id="searchInput" type="search" placeholder="Nom du bateau, propriétaire, licence, téléphone..." />
+              </div>
+              <div class="field-group">
+                <label for="zoneFilter">Zone</label>
+                <select id="zoneFilter"></select>
+              </div>
+              <div class="field-group">
+                <label for="statusFilter">Statut</label>
+                <select id="statusFilter">
+                  <option value="all">Tous les statuts</option>
+                  <option value="actif">Actif</option>
+                  <option value="hivernage">Hivernage</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="archive">Archivé</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mobile-swipe-help">
+              <span>← swipe gauche : actions</span>
+              <span>swipe droite : localiser →</span>
+            </div>
+
+            <div id="boatGrid" class="boat-grid"></div>
+          </div>
+        </section>
+
+        <section id="adminTab" class="tab-panel admin-only">
+          <div class="admin-grid">
+            <article class="panel-surface">
+              <div class="panel-head compact-head">
+                <div>
+                  <h3>Sécurité</h3>
+                  <p>Gestion du compte actuel et mot de passe.</p>
+                </div>
+              </div>
+              <div class="admin-card-stack">
+                <div class="mini-card large-card">
+                  <span class="mini-label">Compte connecté</span>
+                  <strong id="accountCardName">—</strong>
+                  <p id="accountCardEmail">—</p>
+                  <div class="chip-row">
+                    <span id="accountRoleChip" class="chip">—</span>
+                    <span id="accountPasswordChip" class="chip">—</span>
+                  </div>
+                </div>
+                <button id="openPasswordModalButton" class="primary-button">Changer mon mot de passe</button>
+              </div>
+            </article>
+
+            <article class="panel-surface">
+              <div class="panel-head compact-head">
+                <div>
+                  <h3>Utilisateurs & rôles</h3>
+                  <p>En mode Supabase, les comptes existent dans Auth et leurs rôles sont pilotés ici.</p>
+                </div>
+              </div>
+              <div id="profilesNotice" class="inline-notice"></div>
+              <div id="profilesList" class="profiles-list"></div>
+            </article>
+          </div>
+        </section>
+      </main>
+
+
+      <div id="mobileQuickBar" class="mobile-quick-bar hidden" aria-live="polite"></div>
+
+      <nav class="bottom-nav" aria-label="Navigation mobile">
+        <button class="bottom-nav-button active" data-tab-target="dashboardTab">
+          <span>🏖️</span>
+          <small>Plan</small>
+        </button>
+        <button class="bottom-nav-button" data-tab-target="fleetTab">
+          <span>⛵</span>
+          <small>Bateaux</small>
+        </button>
+        <button class="bottom-nav-button admin-only" data-tab-target="adminTab">
+          <span>🔐</span>
+          <small>Admin</small>
+        </button>
+      </nav>
+
+      <button id="floatingAddButton" class="floating-add-button manage-only" aria-label="Créer une fiche bateau">＋</button>
+    </div>
+
+    <div id="boatModal" class="modal-shell hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="boatModal"></div>
+      <div class="modal-card large-modal phone-sheet">
+        <div class="modal-head sticky-modal-head">
+          <div>
+            <p class="eyebrow">Fiche bateau</p>
+            <h3 id="boatModalTitle">Nouvelle fiche</h3>
+            <p class="subtle-text">Version pensée smartphone : sections claires, champs groupés et actions fixes en bas.</p>
+          </div>
+          <button class="icon-button" data-close-modal="boatModal" aria-label="Fermer">×</button>
+        </div>
+
+        <form id="boatForm" class="boat-form smartphone-form">
+          <input id="boatId" type="hidden" />
+          <input id="boatPhotoData" type="hidden" />
+
+          <div class="modal-layout">
+            <section class="photo-side">
+              <img id="boatPhotoPreview" class="boat-photo-preview" src="assets/placeholder-boat.svg" alt="Aperçu bateau" />
+              <div class="photo-buttons manage-only">
+                <label for="boatPhotoInput" class="secondary-button clickable">Ajouter une photo</label>
+                <input id="boatPhotoInput" type="file" accept="image/*" hidden />
+                <button id="removeBoatPhotoButton" type="button" class="ghost-button">Retirer</button>
+              </div>
+            </section>
+
+            <section class="form-side">
+              <div class="form-section-grid">
+                <section class="form-section">
+                  <div class="form-section-title">
+                    <h4>Identité du bateau</h4>
+                    <p>Ce qui permet d’identifier rapidement l’embarcation.</p>
+                  </div>
+                  <div class="form-grid section-body">
+                    <div class="field-group full-span">
+                      <label for="boatName">Nom du bateau</label>
+                      <input id="boatName" type="text" placeholder="Ex. Alizé" />
+                    </div>
+                    <div class="field-group">
+                      <label for="licenceNumber">N° de licence</label>
+                      <input id="licenceNumber" type="text" placeholder="CNH-2026-014" />
+                    </div>
+                    <div class="field-group">
+                      <label for="registrationNumber">Immatriculation</label>
+                      <input id="registrationNumber" type="text" placeholder="DK123456" />
+                    </div>
+                    <div class="field-group">
+                      <label for="boatType">Type de bateau</label>
+                      <input id="boatType" type="text" placeholder="Catamaran, dériveur, semi-rigide..." />
+                    </div>
+                    <div class="field-group">
+                      <label for="boatStatus">Statut</label>
+                      <select id="boatStatus">
+                        <option value="actif">Actif</option>
+                        <option value="hivernage">Hivernage</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="archive">Archivé</option>
+                      </select>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="form-section">
+                  <div class="form-section-title">
+                    <h4>Propriétaire</h4>
+                    <p>Coordonnées directes du membre ou du responsable.</p>
+                  </div>
+                  <div class="form-grid section-body">
+                    <div class="field-group">
+                      <label for="ownerName">Propriétaire</label>
+                      <input id="ownerName" type="text" placeholder="Nom et prénom" />
+                    </div>
+                    <div class="field-group">
+                      <label for="ownerPhone">Téléphone</label>
+                      <input id="ownerPhone" type="tel" placeholder="06 00 00 00 00" />
+                    </div>
+                    <div class="field-group">
+                      <label for="ownerEmail">Email</label>
+                      <input id="ownerEmail" type="email" placeholder="nom@email.fr" />
+                    </div>
+                    <div class="field-group">
+                      <label for="emergencyContact">Contact d’urgence</label>
+                      <input id="emergencyContact" type="text" placeholder="Nom + téléphone" />
+                    </div>
+                  </div>
+                </section>
+
+                <section class="form-section">
+                  <div class="form-section-title">
+                    <h4>Emplacement</h4>
+                    <p>Affectation de la place et dimensions du bateau.</p>
+                  </div>
+                  <div class="form-grid section-body">
+                    <div class="field-group">
+                      <label for="zoneSelect">Zone</label>
+                      <select id="zoneSelect"></select>
+                    </div>
+                    <div class="field-group">
+                      <label for="slotSelect">Place</label>
+                      <select id="slotSelect"></select>
+                    </div>
+                    <div class="field-group">
+                      <label for="lengthInput">Longueur (m)</label>
+                      <input id="lengthInput" type="number" min="0" step="0.1" placeholder="5.2" />
+                    </div>
+                    <div class="field-group">
+                      <label for="widthInput">Largeur (m)</label>
+                      <input id="widthInput" type="number" min="0" step="0.1" placeholder="2.1" />
+                    </div>
+                  </div>
+                </section>
+
+                <section class="form-section">
+                  <div class="form-section-title">
+                    <h4>Compléments</h4>
+                    <p>Informations utiles pour l’équipe du club.</p>
+                  </div>
+                  <div class="form-grid section-body">
+                    <div class="field-group full-span">
+                      <label for="equipmentInput">Équipements / infos utiles</label>
+                      <input id="equipmentInput" type="text" placeholder="Remorque, bâche, code portail, assurance..." />
+                    </div>
+                    <div class="field-group full-span">
+                      <label for="notesInput">Notes</label>
+                      <textarea id="notesInput" rows="5" placeholder="Commentaires libres, état général, consignes, dates importantes..."></textarea>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </section>
+          </div>
+
+          <div class="modal-actions sticky-modal-actions">
+            <button type="submit" class="primary-button manage-only">Enregistrer</button>
+            <button id="duplicateBoatButton" type="button" class="secondary-button manage-only">Dupliquer</button>
+            <button id="deleteBoatButton" type="button" class="ghost-button danger-button manage-only">Supprimer</button>
+            <button type="button" class="ghost-button" data-close-modal="boatModal">Fermer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="passwordModal" class="modal-shell hidden" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card password-modal-card">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Sécurité</p>
+            <h3>Changer le mot de passe</h3>
+            <p id="passwordModalText" class="subtle-text">
+              Pour sécuriser le compte administrateur, le mot de passe doit être changé après la première connexion.
+            </p>
+          </div>
+        </div>
+
+        <form id="passwordForm" class="stack-form">
+          <div class="field-group">
+            <label for="newPassword">Nouveau mot de passe</label>
+            <input id="newPassword" type="password" autocomplete="new-password" required minlength="8" placeholder="Minimum 8 caractères" />
+          </div>
+          <div class="field-group">
+            <label for="confirmPassword">Confirmer le mot de passe</label>
+            <input id="confirmPassword" type="password" autocomplete="new-password" required minlength="8" placeholder="Retapez le mot de passe" />
+          </div>
+          <button type="submit" class="primary-button wide">Valider le nouveau mot de passe</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
