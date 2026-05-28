@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cnh-pwa-cache-v17';
+const CACHE_NAME = 'cnh-pwa-cache-v18';
 const APP_SHELL = [
   './',
   './index.html',

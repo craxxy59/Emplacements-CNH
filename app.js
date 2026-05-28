@@ -69,7 +69,11 @@ const STORAGE_KEYS = {
 
 const CONFIG = window.CNH_CONFIG || {};
 const MOBILE_BREAKPOINT = 760;
+const PLAN_IMAGE_WIDTH = 1549;
+const PLAN_IMAGE_HEIGHT = 605;
 const DEFAULT_PHOTO = 'assets/placeholder-boat.svg';
+
+let planMapResizeObserver = null;
 
 const state = {
   mode: isSupabaseReady() && CONFIG.demoMode !== true ? 'supabase' : 'demo',
@@ -1205,34 +1209,67 @@ function renderSitePlan() {
   }).join('');
 
   els.sitePlanMap.innerHTML = `
-    <div class="site-plan-frame">
-      <img class="site-plan-photo" src="${PLAN_REFERENCE_IMAGE}" alt="Vue aérienne des emplacements CNH — zones A, B et C" />
-      <div class="site-plan-overlays">${overlays}</div>
+    <p class="plan-mobile-hint" aria-hidden="true">↔ Glissez pour parcourir le plan</p>
+    <div class="site-plan-scroll">
+      <div class="site-plan-frame">
+        <img class="site-plan-photo" src="${PLAN_REFERENCE_IMAGE}" alt="Vue aérienne des emplacements CNH — zones A, B et C" />
+        <div class="site-plan-overlays">${overlays}</div>
+      </div>
     </div>
   `;
+  ensurePlanMapResizeObserver();
   syncPlanDisplaySize();
+}
+
+function ensurePlanMapResizeObserver() {
+  if (!els.sitePlanMap || planMapResizeObserver) return;
+  planMapResizeObserver = new ResizeObserver(() => syncPlanDisplaySize());
+  planMapResizeObserver.observe(els.sitePlanMap);
 }
 
 /** Affiche le plan à la bonne échelle (sans étirement) pour que les zones restent alignées */
 function syncPlanDisplaySize() {
   const map = els.sitePlanMap;
+  const scroll = map?.querySelector('.site-plan-scroll');
   const frame = map?.querySelector('.site-plan-frame');
   const img = map?.querySelector('.site-plan-photo');
   if (!map || !frame || !img) return;
 
   const apply = () => {
-    const natW = img.naturalWidth;
-    const natH = img.naturalHeight;
-    if (!natW || !natH) return;
+    const natW = img.naturalWidth || PLAN_IMAGE_WIDTH;
+    const natH = img.naturalHeight || PLAN_IMAGE_HEIGHT;
+    const aspect = natW / natH;
+    const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+
+    map.classList.toggle('site-plan-map--mobile', isMobile);
+
+    if (isMobile) {
+      const containerW = Math.max(map.clientWidth, 1);
+      const minWidth = Math.min(720, Math.max(containerW, 520));
+      const maxHeight = Math.min(Math.max(window.innerHeight * 0.46, 220), 380);
+      let displayH = Math.round(minWidth / aspect);
+      let displayW = minWidth;
+
+      if (displayH > maxHeight) {
+        displayH = maxHeight;
+        displayW = Math.round(displayH * aspect);
+      }
+
+      frame.style.width = `${displayW}px`;
+      frame.style.height = `${displayH}px`;
+      centerPlanInScroll(scroll || map, frame);
+      return;
+    }
 
     const maxHeight = Math.min(window.innerHeight * 0.78, 900);
-    const maxWidth = map.clientWidth - 8;
+    const maxWidth = Math.max(map.clientWidth - 8, 1);
     const scale = Math.min(maxHeight / natH, maxWidth / natW);
     const displayW = Math.round(natW * scale);
     const displayH = Math.round(natH * scale);
 
     frame.style.width = `${displayW}px`;
     frame.style.height = `${displayH}px`;
+    if (scroll) scroll.scrollLeft = 0;
   };
 
   if (img.complete) {
@@ -1240,6 +1277,15 @@ function syncPlanDisplaySize() {
   } else {
     img.addEventListener('load', apply, { once: true });
   }
+}
+
+function centerPlanInScroll(map, frame) {
+  if (!map || !frame || window.innerWidth > MOBILE_BREAKPOINT) return;
+  requestAnimationFrame(() => {
+    const frameW = frame.offsetWidth;
+    const excess = frameW - map.clientWidth;
+    map.scrollLeft = excess > 8 ? Math.round(excess / 2) : 0;
+  });
 }
 
 function renderSidebarZoneStats() {
