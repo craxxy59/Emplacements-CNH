@@ -261,17 +261,22 @@
                 </div>
               </div>
 
+              <button type="button" id="openPlanFullscreenBtn" class="primary-button wide open-plan-fullscreen-btn">
+                Afficher le plan
+              </button>
+              <div id="sitePlanAnchor" class="site-plan-anchor" hidden></div>
+
               <div id="sitePlanSection" class="site-plan-section">
                 <div id="sitePlanMap" class="site-plan-map" aria-label="Plan interactif des emplacements CNH"></div>
-                <div id="zoneFocusBar" class="zone-focus-bar hidden">
-                  <div class="zone-focus-info">
-                    <strong id="zoneFocusTitle">—</strong>
-                    <span id="zoneFocusMeta" class="zone-focus-meta">—</span>
-                  </div>
-                  <div class="zone-focus-actions">
-                    <button type="button" id="zoneFocusAllBtn" class="ghost-button small-button">Toutes les zones</button>
-                    <button type="button" id="zoneFocusGridBtn" class="secondary-button small-button">Passer en grille</button>
-                  </div>
+              </div>
+              <div id="zoneFocusBar" class="zone-focus-bar hidden">
+                <div class="zone-focus-info">
+                  <strong id="zoneFocusTitle">—</strong>
+                  <span id="zoneFocusMeta" class="zone-focus-meta">—</span>
+                </div>
+                <div class="zone-focus-actions">
+                  <button type="button" id="zoneFocusAllBtn" class="ghost-button small-button">Toutes les zones</button>
+                  <button type="button" id="zoneFocusGridBtn" class="secondary-button small-button">Passer en grille</button>
                 </div>
               </div>
 
@@ -360,6 +365,24 @@
         </section>
       </main>
 
+
+      <div
+        id="planFullscreen"
+        class="plan-fullscreen hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="planFullscreenTitle"
+        aria-hidden="true"
+      >
+        <header class="plan-fullscreen-head">
+          <div>
+            <p class="eyebrow">Plan du site</p>
+            <h2 id="planFullscreenTitle">46 emplacements</h2>
+          </div>
+          <button type="button" id="closePlanFullscreenBtn" class="plan-fullscreen-close" aria-label="Fermer le plan">×</button>
+        </header>
+        <div id="planFullscreenBody" class="plan-fullscreen-body"></div>
+      </div>
 
       <nav class="bottom-nav" aria-label="Navigation mobile">
         <button class="bottom-nav-button active" data-tab-target="dashboardTab">

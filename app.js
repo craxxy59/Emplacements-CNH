@@ -71,6 +71,8 @@ const CONFIG = window.CNH_CONFIG || {};
 const MOBILE_BREAKPOINT = 760;
 const PLAN_IMAGE_WIDTH = 1549;
 const PLAN_IMAGE_HEIGHT = 605;
+const PLAN_FULLSCREEN_FILL = 0.96;
+const PLAN_FULLSCREEN_PAN_PAD = 24;
 const DEFAULT_PHOTO = 'assets/placeholder-boat.svg';
 
 let planMapResizeObserver = null;
@@ -135,6 +137,11 @@ const els = {
   zoneFocusGridBtn: document.getElementById('zoneFocusGridBtn'),
   planMapViewBtn: document.getElementById('planMapViewBtn'),
   planGridViewBtn: document.getElementById('planGridViewBtn'),
+  openPlanFullscreenBtn: document.getElementById('openPlanFullscreenBtn'),
+  closePlanFullscreenBtn: document.getElementById('closePlanFullscreenBtn'),
+  planFullscreen: document.getElementById('planFullscreen'),
+  planFullscreenBody: document.getElementById('planFullscreenBody'),
+  sitePlanAnchor: document.getElementById('sitePlanAnchor'),
   sidebarZoneStats: document.getElementById('sidebarZoneStats'),
   searchInput: document.getElementById('searchInput'),
   zoneFilter: document.getElementById('zoneFilter'),
@@ -825,13 +832,15 @@ function bindEvents() {
       return;
     }
     const zoneFocusBtn = event.target.closest('.zone-overlay-focus');
-    if (zoneFocusBtn) {
+    if (zoneFocusBtn && !isPlanFullscreenOpen()) {
       setFocusZone(zoneFocusBtn.dataset.zone, false);
     }
   });
 
   els.planMapViewBtn?.addEventListener('click', () => setPlanView('map'));
   els.planGridViewBtn?.addEventListener('click', () => setPlanView('grid'));
+  els.openPlanFullscreenBtn?.addEventListener('click', openPlanFullscreen);
+  els.closePlanFullscreenBtn?.addEventListener('click', closePlanFullscreen);
   els.zoneFocusAllBtn?.addEventListener('click', () => setFocusZone(null));
   els.zoneFocusGridBtn?.addEventListener('click', () => {
     setPlanView('grid');
@@ -878,6 +887,10 @@ function bindEvents() {
 
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
+      if (isPlanFullscreenOpen()) {
+        closePlanFullscreen();
+        return;
+      }
       setSidebarOpen(false);
       if (!state.forcePasswordChange) closeModal('passwordModal');
       closeModal('boatModal');
@@ -888,10 +901,81 @@ function bindEvents() {
 }
 
 function handleResize() {
+  if (window.innerWidth > MOBILE_BREAKPOINT && isPlanFullscreenOpen()) {
+    closePlanFullscreen();
+  }
   if (window.innerWidth <= MOBILE_BREAKPOINT && !state.ui.viewMode) {
     setViewMode('compact');
   }
+  updatePlanFullscreenButton();
   syncPlanDisplaySize();
+}
+
+function isPlanFullscreenOpen() {
+  return document.body.classList.contains('plan-fullscreen-open');
+}
+
+function isMobileViewport() {
+  return window.innerWidth <= MOBILE_BREAKPOINT;
+}
+
+function updatePlanFullscreenButton() {
+  if (!els.openPlanFullscreenBtn) return;
+  const show =
+    isMobileViewport() &&
+    state.activeTab === 'dashboardTab' &&
+    state.planView === 'map' &&
+    !isPlanFullscreenOpen();
+  els.openPlanFullscreenBtn.classList.toggle('hidden', !show);
+}
+
+function openPlanFullscreen() {
+  if (!isMobileViewport() || !els.planFullscreenBody || !els.sitePlanSection) return;
+
+  setPlanView('map');
+  setSidebarOpen(false);
+  state.focusZone = null;
+
+  els.planFullscreenBody.appendChild(els.sitePlanSection);
+  els.zoneFocusBar?.classList.add('hidden');
+
+  els.planFullscreen?.classList.remove('hidden');
+  els.planFullscreen?.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('plan-fullscreen-open');
+
+  renderSitePlan();
+  updatePlanFullscreenButton();
+  syncPlanDisplaySize();
+  els.closePlanFullscreenBtn?.focus();
+}
+
+function closePlanFullscreen() {
+  if (!els.sitePlanAnchor || !els.sitePlanSection) return;
+
+  const parent = els.sitePlanAnchor.parentNode;
+  if (parent) {
+    parent.insertBefore(els.sitePlanSection, els.sitePlanAnchor.nextSibling);
+    if (els.zoneFocusBar) {
+      parent.insertBefore(els.zoneFocusBar, els.sitePlanSection.nextSibling);
+    }
+  }
+
+  els.planFullscreen?.classList.add('hidden');
+  els.planFullscreen?.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('plan-fullscreen-open');
+
+  resetPlanFullscreenLayout();
+  updatePlanFullscreenButton();
+  syncPlanDisplaySize();
+}
+
+function resetPlanFullscreenLayout() {
+  const props = ['width', 'min-width', 'min-height', 'padding', 'box-sizing'];
+  props.forEach((prop) => {
+    els.sitePlanSection?.style.removeProperty(prop);
+    els.sitePlanMap?.style.removeProperty(prop);
+  });
+  els.sitePlanMap?.style.removeProperty('max-width');
 }
 
 function updateModeBadge() {
@@ -932,6 +1016,7 @@ function bindWorkspaceHeaderScroll() {
 }
 
 function switchTab(tabId) {
+  if (isPlanFullscreenOpen()) closePlanFullscreen();
   state.activeTab = tabId;
   setSidebarOpen(false);
   document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === tabId));
@@ -941,6 +1026,7 @@ function switchTab(tabId) {
   els.workspaceTitle.textContent = tabMeta[tabId].title;
   els.workspaceSubtitle.textContent = tabMeta[tabId].subtitle;
   closeAllSwipeRows();
+  updatePlanFullscreenButton();
 }
 
 function setViewMode(mode) {
@@ -1084,17 +1170,20 @@ function renderAll() {
   syncPlanGridVisibility();
   updatePlanViewButtons();
   updateViewModeButtons();
+  updatePlanFullscreenButton();
 }
 
 function setPlanView(view) {
   state.planView = view;
   if (view === 'grid') {
     state.focusZone = null;
+    if (isPlanFullscreenOpen()) closePlanFullscreen();
   }
   updatePlanViewButtons();
   renderZonesBoard();
   renderSidebarZoneStats();
   syncPlanGridVisibility();
+  updatePlanFullscreenButton();
 }
 
 /** Plan aérien et grille détaillée ne s’affichent jamais en même temps */
@@ -1128,7 +1217,7 @@ function setFocusZone(zoneId, scrollToGrid = false) {
 
 function updateZoneFocusBar() {
   if (!els.zoneFocusBar) return;
-  if (!state.focusZone || state.planView === 'grid') {
+  if (!state.focusZone || state.planView === 'grid' || isPlanFullscreenOpen()) {
     els.zoneFocusBar.classList.add('hidden');
     return;
   }
@@ -1146,7 +1235,9 @@ function scrollToZoneSection(zoneId) {
 
 function selectSlot(zoneId, slotNumber, openModal = false) {
   state.selectedSlot = { zone_id: zoneId, slot_number: slotNumber };
-  state.focusZone = zoneId;
+  if (!isPlanFullscreenOpen()) {
+    state.focusZone = zoneId;
+  }
   const boat = getBoatBySlot(zoneId, slotNumber);
   state.selectedBoatId = boat?.id || null;
   renderSitePlan();
@@ -1171,8 +1262,9 @@ function renderSitePlan() {
     const geom = ZONE_GEOMETRY[zone.id];
     const occupied = state.boats.filter((b) => b.zone_id === zone.id).length;
     const rate = getZoneOccupancyRate(zone.id);
-    const focused = state.focusZone === zone.id;
-    const dimmed = state.focusZone && !focused;
+    const zoneFocusActive = !isPlanFullscreenOpen() && state.focusZone;
+    const focused = zoneFocusActive && state.focusZone === zone.id;
+    const dimmed = zoneFocusActive && state.focusZone !== zone.id;
     const highOccupancy = rate >= 85;
 
     const slots = Array.from({ length: zone.count }, (_, index) => {
@@ -1208,8 +1300,11 @@ function renderSitePlan() {
     `;
   }).join('');
 
+  const panHint = isPlanFullscreenOpen()
+    ? 'Glissez pour explorer tout le plan • touchez une place'
+    : 'Touchez une place pour le détail';
   els.sitePlanMap.innerHTML = `
-    <p class="plan-mobile-hint" aria-hidden="true">↔ Glissez pour parcourir le plan</p>
+    <p class="plan-mobile-hint" aria-hidden="true">${panHint}</p>
     <div class="site-plan-scroll">
       <div class="site-plan-frame">
         <img class="site-plan-photo" src="${PLAN_REFERENCE_IMAGE}" alt="Vue aérienne des emplacements CNH — zones A, B et C" />
@@ -1225,6 +1320,7 @@ function ensurePlanMapResizeObserver() {
   if (!els.sitePlanMap || planMapResizeObserver) return;
   planMapResizeObserver = new ResizeObserver(() => syncPlanDisplaySize());
   planMapResizeObserver.observe(els.sitePlanMap);
+  if (els.planFullscreenBody) planMapResizeObserver.observe(els.planFullscreenBody);
 }
 
 /** Affiche le plan à la bonne échelle (sans étirement) pour que les zones restent alignées */
@@ -1240,8 +1336,43 @@ function syncPlanDisplaySize() {
     const natH = img.naturalHeight || PLAN_IMAGE_HEIGHT;
     const aspect = natW / natH;
     const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+    const isFullscreen = isPlanFullscreenOpen();
 
-    map.classList.toggle('site-plan-map--mobile', isMobile);
+    map.classList.toggle('site-plan-map--mobile', isMobile && !isFullscreen);
+    map.classList.toggle('site-plan-map--fullscreen', isFullscreen);
+
+    if (isFullscreen) {
+      const headH = els.planFullscreen?.querySelector('.plan-fullscreen-head')?.offsetHeight || 56;
+      const viewportW = window.innerWidth;
+      const viewportH = window.innerHeight;
+      const maxHeight = Math.max(viewportH - headH - 8, 240);
+      const maxWidth = viewportW;
+      const pad = PLAN_FULLSCREEN_PAN_PAD;
+
+      const scale = Math.max(maxWidth / natW, maxHeight / natH) * PLAN_FULLSCREEN_FILL;
+      const displayW = Math.round(natW * scale);
+      const displayH = Math.round(natH * scale);
+      const contentW = displayW + pad * 2;
+      const contentH = displayH + pad * 2;
+
+      frame.style.width = `${displayW}px`;
+      frame.style.height = `${displayH}px`;
+
+      if (els.sitePlanSection) {
+        els.sitePlanSection.style.boxSizing = 'content-box';
+        els.sitePlanSection.style.padding = `${pad}px`;
+        els.sitePlanSection.style.width = `${contentW}px`;
+        els.sitePlanSection.style.minHeight = `${contentH}px`;
+      }
+      map.style.width = `${displayW}px`;
+      map.style.maxWidth = 'none';
+      map.style.overflow = 'visible';
+
+      centerPlanFullscreenScroll(contentW, contentH);
+      return;
+    }
+
+    resetPlanFullscreenLayout();
 
     if (isMobile) {
       const containerW = Math.max(map.clientWidth, 1);
@@ -1285,6 +1416,15 @@ function centerPlanInScroll(map, frame) {
     const frameW = frame.offsetWidth;
     const excess = frameW - map.clientWidth;
     map.scrollLeft = excess > 8 ? Math.round(excess / 2) : 0;
+  });
+}
+
+function centerPlanFullscreenScroll(contentW, contentH) {
+  requestAnimationFrame(() => {
+    const scrollEl = els.planFullscreenBody;
+    if (!scrollEl) return;
+    scrollEl.scrollLeft = Math.max(0, Math.round((contentW - scrollEl.clientWidth) / 2));
+    scrollEl.scrollTop = Math.max(0, Math.round((contentH - scrollEl.clientHeight) / 2));
   });
 }
 
