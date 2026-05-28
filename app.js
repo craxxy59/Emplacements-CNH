@@ -291,15 +291,19 @@ function planSlotTooltip(zoneId, slot, boat) {
   return parts.join(' • ');
 }
 
-function renderPlanSlotMarkup(zoneId, slot, boat, selected) {
+function planSlotPhotoSrc(boat) {
+  return boat?.photo_data || DEFAULT_PHOTO;
+}
+
+function renderPlanSlotMarkup(zoneId, slot, boat) {
   const global = getGlobalSlotNumber(zoneId, slot);
   if (!boat) {
     return `<span class="plan-slot-num">${global}</span>`;
   }
-  const name = truncatePlanText(boat.boat_name || displayBoatName(boat), 8);
+  const alt = escapeHtml(displayBoatName(boat));
   return `
-    <span class="plan-slot-num">${global}</span>
-    <span class="plan-slot-name">${escapeHtml(name)}</span>
+    <img class="plan-slot-photo" src="${planSlotPhotoSrc(boat)}" alt="${alt}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${DEFAULT_PHOTO}'" />
+    <span class="plan-slot-num" aria-hidden="true">${global}</span>
   `;
 }
 
@@ -1166,13 +1170,13 @@ function renderSitePlan() {
       const selected =
         state.selectedSlot.zone_id === zone.id && state.selectedSlot.slot_number === slot;
       const statusClass = boat ? `status-${boat.status}` : '';
-      const occupiedClass = boat ? 'is-occupied' : 'plan-slot-free';
+      const occupiedClass = boat ? 'is-occupied has-photo' : 'plan-slot-free';
       const selectedClass = selected ? 'is-selected' : '';
       const tooltip = escapeHtml(planSlotTooltip(zone.id, slot, boat));
       const ariaLabel = boat
         ? `${formatEmplacement(zone.id, slot)}, ${displayBoatName(boat)}, ${displayOwnerName(boat)}`
         : `${formatEmplacement(zone.id, slot)}, libre`;
-      return `<button type="button" class="plan-slot ${occupiedClass} ${statusClass} ${selectedClass}" data-zone="${zone.id}" data-slot="${slot}" title="${tooltip}" aria-label="${escapeHtml(ariaLabel)}">${renderPlanSlotMarkup(zone.id, slot, boat, selected)}</button>`;
+      return `<button type="button" class="plan-slot ${occupiedClass} ${statusClass} ${selectedClass}" data-zone="${zone.id}" data-slot="${slot}" title="${tooltip}" aria-label="${escapeHtml(ariaLabel)}">${renderPlanSlotMarkup(zone.id, slot, boat)}</button>`;
     }).join('');
 
     return `
