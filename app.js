@@ -1,17 +1,50 @@
 const ZONES = [
-  { id: 'A', name: 'Zone A', count: 18, description: 'Rangée extérieure — 18 places' },
-  { id: 'B', name: 'Zone B', count: 18, description: 'Rangée centrale — 18 places' },
-  { id: 'C', name: 'Zone C', count: 10, description: 'Rangée annexe — 10 places' },
+  { id: 'A', name: 'Zone A', count: 18, description: 'Rangée du bas — emplacements 1 à 18' },
+  { id: 'B', name: 'Zone B', count: 18, description: 'Rangée centrale — emplacements 19 à 36' },
+  { id: 'C', name: 'Zone C', count: 10, description: 'Rangée du haut — emplacements 37 à 46' },
 ];
 
-/** Position des zones sur la photo aérienne (plan CNH) */
+/**
+ * Calage auto sur les rectangles noirs de plan emplacements.png (1549×605)
+ * haut = 10 (C), milieu = 18 (B), bas = 18 (A)
+ */
 const ZONE_GEOMETRY = {
-  A: { left: '3.5%', top: '2%', width: '29%', height: '96%' },
-  B: { left: '33.5%', top: '2%', width: '29%', height: '96%' },
-  C: { left: '64%', top: '2%', width: '32%', height: '58%' },
+  C: { left: '10.85%', top: '0.17%', width: '55.65%', height: '25.95%' },
+  B: { left: '0.19%', top: '46.78%', width: '99.03%', height: '23.95%' },
+  A: { left: '0.19%', top: '71.9%', width: '99.03%', height: '25.05%' },
 };
 
 const PLAN_REFERENCE_IMAGE = 'assets/plan-reference.png';
+
+const TOTAL_SPOTS = ZONES.reduce((sum, zone) => sum + zone.count, 0);
+
+function getGlobalSlotNumber(zoneId, slotNumber) {
+  let offset = 0;
+  for (const zone of ZONES) {
+    if (zone.id === zoneId) {
+      return offset + Number(slotNumber);
+    }
+    offset += zone.count;
+  }
+  return Number(slotNumber);
+}
+
+function getZoneSlotFromGlobal(globalNumber) {
+  const n = Number(globalNumber);
+  if (!Number.isFinite(n) || n < 1 || n > TOTAL_SPOTS) return null;
+  let offset = 0;
+  for (const zone of ZONES) {
+    if (n <= offset + zone.count) {
+      return { zone_id: zone.id, slot_number: n - offset };
+    }
+    offset += zone.count;
+  }
+  return null;
+}
+
+function formatEmplacement(zoneId, slotNumber) {
+  return `Emplacement ${getGlobalSlotNumber(zoneId, slotNumber)}`;
+}
 
 const STATUS_LABELS = {
   actif: 'Actif',
@@ -99,8 +132,6 @@ const els = {
   planMapViewBtn: document.getElementById('planMapViewBtn'),
   planGridViewBtn: document.getElementById('planGridViewBtn'),
   sidebarZoneStats: document.getElementById('sidebarZoneStats'),
-  selectedSlotCard: document.getElementById('selectedSlotCard'),
-  summaryCards: document.getElementById('summaryCards'),
   mobileQuickBar: document.getElementById('mobileQuickBar'),
   searchInput: document.getElementById('searchInput'),
   zoneFilter: document.getElementById('zoneFilter'),
@@ -146,12 +177,16 @@ const els = {
   newPassword: document.getElementById('newPassword'),
   confirmPassword: document.getElementById('confirmPassword'),
   toastContainer: document.getElementById('toastContainer'),
+  sidebar: document.getElementById('sidebar'),
+  sidebarToggle: document.getElementById('sidebarToggle'),
+  sidebarClose: document.getElementById('sidebarClose'),
+  sidebarBackdrop: document.getElementById('sidebarBackdrop'),
 };
 
 const tabMeta = {
   dashboardTab: {
-    title: 'Tableau de bord',
-    subtitle: 'Vue temps réel des emplacements, des bateaux et des données propriétaires.',
+    title: 'Plan des emplacements',
+    subtitle: 'Photo aérienne interactive — 46 places en zones A (18), B (18) et C (10).',
   },
   fleetTab: {
     title: 'Registre des bateaux',
@@ -225,12 +260,47 @@ function escapeHtml(value) {
 function displayBoatName(boat) {
   const name = safeText(boat?.boat_name);
   if (name) return name;
-  if (boat?.zone_id && boat?.slot_number) return `Bateau non renseigné • ${boat.zone_id}${boat.slot_number}`;
+  if (boat?.zone_id && boat?.slot_number) {
+    return `Bateau non renseigné • ${formatEmplacement(boat.zone_id, boat.slot_number)}`;
+  }
   return 'Bateau non renseigné';
 }
 
 function displayOwnerName(boat) {
   return safeText(boat?.owner_name) || 'Propriétaire non renseigné';
+}
+
+function truncatePlanText(value, max = 10) {
+  const text = safeText(value);
+  if (!text) return '';
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function planSlotTooltip(zoneId, slot, boat) {
+  const global = getGlobalSlotNumber(zoneId, slot);
+  if (!boat) return `${formatEmplacement(zoneId, slot)} (${getZone(zoneId).name}) — libre`;
+  const parts = [
+    formatEmplacement(zoneId, slot),
+    getZone(zoneId).name,
+    displayBoatName(boat),
+    displayOwnerName(boat),
+    boat.owner_phone ? `Tél. ${boat.owner_phone}` : '',
+    boat.licence_number ? `Licence ${boat.licence_number}` : '',
+    STATUS_LABELS[boat.status],
+  ].filter(Boolean);
+  return parts.join(' • ');
+}
+
+function renderPlanSlotMarkup(zoneId, slot, boat, selected) {
+  const global = getGlobalSlotNumber(zoneId, slot);
+  if (!boat) {
+    return `<span class="plan-slot-num">${global}</span>`;
+  }
+  const name = truncatePlanText(boat.boat_name || displayBoatName(boat), 8);
+  return `
+    <span class="plan-slot-num">${global}</span>
+    <span class="plan-slot-name">${escapeHtml(name)}</span>
+  `;
 }
 
 function hasMeaningfulBoatInfo(data = {}) {
@@ -252,8 +322,9 @@ function hasMeaningfulBoatInfo(data = {}) {
 }
 
 function sortBoats(a, b) {
-  if (a.zone_id !== b.zone_id) return a.zone_id.localeCompare(b.zone_id);
-  if (a.slot_number !== b.slot_number) return a.slot_number - b.slot_number;
+  const slotA = getGlobalSlotNumber(a.zone_id, a.slot_number);
+  const slotB = getGlobalSlotNumber(b.zone_id, b.slot_number);
+  if (slotA !== slotB) return slotA - slotB;
   return a.boat_name.localeCompare(b.boat_name, 'fr');
 }
 
@@ -694,7 +765,7 @@ function updateSlotSelect(zoneId, selectedSlotNumber = 1) {
   const zone = getZone(zoneId);
   els.slotSelect.innerHTML = Array.from({ length: zone.count }, (_, index) => {
     const slot = index + 1;
-    return `<option value="${slot}">Place ${slot}</option>`;
+    return `<option value="${slot}">${formatEmplacement(zoneId, slot)}</option>`;
   }).join('');
   els.slotSelect.value = String(selectedSlotNumber);
 }
@@ -703,6 +774,7 @@ function bindEvents() {
   populateZones();
   updateModeBadge();
   updateViewModeButtons();
+  bindSidebar();
 
   els.loginForm.addEventListener('submit', handleLogin);
   els.logoutButton.addEventListener('click', handleLogout);
@@ -745,9 +817,9 @@ function bindEvents() {
       selectSlot(planSlot.dataset.zone, Number(planSlot.dataset.slot), true);
       return;
     }
-    const zoneOverlay = event.target.closest('.zone-overlay');
-    if (zoneOverlay) {
-      setFocusZone(zoneOverlay.dataset.zone, true);
+    const zoneFocusBtn = event.target.closest('.zone-overlay-focus');
+    if (zoneFocusBtn) {
+      setFocusZone(zoneFocusBtn.dataset.zone, false);
     }
   });
 
@@ -756,14 +828,14 @@ function bindEvents() {
   els.zoneFocusAllBtn?.addEventListener('click', () => setFocusZone(null));
   els.zoneFocusGridBtn?.addEventListener('click', () => {
     setPlanView('grid');
-    scrollToZoneSection(state.focusZone || state.selectedSlot.zone_id);
   });
 
   els.sidebarZoneStats?.addEventListener('click', (event) => {
     const item = event.target.closest('[data-sidebar-zone]');
     if (!item) return;
-    setFocusZone(item.dataset.sidebarZone, true);
     switchTab('dashboardTab');
+    setPlanView('map');
+    setFocusZone(item.dataset.sidebarZone, false);
   });
 
   els.boatGrid.addEventListener('click', handleBoatGridClick);
@@ -799,6 +871,7 @@ function bindEvents() {
 
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
+      setSidebarOpen(false);
       if (!state.forcePasswordChange) closeModal('passwordModal');
       closeModal('boatModal');
     }
@@ -811,6 +884,7 @@ function handleResize() {
   if (window.innerWidth <= MOBILE_BREAKPOINT && !state.ui.viewMode) {
     setViewMode('compact');
   }
+  syncPlanDisplaySize();
   renderMobileQuickBar();
 }
 
@@ -824,8 +898,23 @@ function updateModeBadge() {
   }
 }
 
+function setSidebarOpen(open) {
+  const isOpen = Boolean(open);
+  els.sidebar?.classList.toggle('is-open', isOpen);
+  els.sidebarBackdrop?.classList.toggle('hidden', !isOpen);
+  els.sidebarToggle?.setAttribute('aria-expanded', String(isOpen));
+  document.body.classList.toggle('sidebar-open', isOpen);
+}
+
+function bindSidebar() {
+  els.sidebarToggle?.addEventListener('click', () => setSidebarOpen(true));
+  els.sidebarClose?.addEventListener('click', () => setSidebarOpen(false));
+  els.sidebarBackdrop?.addEventListener('click', () => setSidebarOpen(false));
+}
+
 function switchTab(tabId) {
   state.activeTab = tabId;
+  setSidebarOpen(false);
   document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === tabId));
   document.querySelectorAll('.nav-button, .bottom-nav-button').forEach((button) => {
     button.classList.toggle('active', button.dataset.tabTarget === tabId);
@@ -833,6 +922,7 @@ function switchTab(tabId) {
   els.workspaceTitle.textContent = tabMeta[tabId].title;
   els.workspaceSubtitle.textContent = tabMeta[tabId].subtitle;
   closeAllSwipeRows();
+  renderMobileQuickBar();
 }
 
 function setViewMode(mode) {
@@ -899,6 +989,7 @@ async function handleLogout() {
     state.forcePasswordChange = false;
     closeModal('boatModal');
     closeModal('passwordModal');
+    setSidebarOpen(false);
     showAuth();
   }
 }
@@ -907,6 +998,7 @@ async function bootstrapWorkspace() {
   showApp();
   applyRoleVisibility();
   hydrateCurrentUserCard();
+  setPlanView('map');
   await reloadData(false);
   if (state.currentProfile?.must_change_password) {
     openPasswordModal(true);
@@ -933,6 +1025,7 @@ function showAuth() {
 function showApp() {
   els.authView.classList.add('hidden');
   els.appView.classList.remove('hidden');
+  setSidebarOpen(false);
 }
 
 function applyRoleVisibility() {
@@ -965,13 +1058,197 @@ function hydrateCurrentUserCard() {
 function renderAll() {
   hydrateCurrentUserCard();
   renderStats();
+  renderSitePlan();
+  renderSidebarZoneStats();
   renderZonesBoard();
-  renderSelectedSlot();
-  renderSummary();
   renderBoatGrid();
   renderProfiles();
   renderMobileQuickBar();
+  syncPlanGridVisibility();
+  updatePlanViewButtons();
   updateViewModeButtons();
+}
+
+function setPlanView(view) {
+  state.planView = view;
+  if (view === 'grid') {
+    state.focusZone = null;
+  }
+  updatePlanViewButtons();
+  renderZonesBoard();
+  renderSidebarZoneStats();
+  syncPlanGridVisibility();
+}
+
+/** Plan aérien et grille détaillée ne s’affichent jamais en même temps */
+function syncPlanGridVisibility() {
+  const isMap = state.planView === 'map';
+  els.sitePlanSection?.classList.toggle('hidden', !isMap);
+  els.zonesBoard?.classList.toggle('plan-grid-hidden', isMap);
+  updateZoneFocusBar();
+}
+
+function updatePlanViewButtons() {
+  els.planMapViewBtn?.classList.toggle('active', state.planView === 'map');
+  els.planGridViewBtn?.classList.toggle('active', state.planView === 'grid');
+}
+
+function setFocusZone(zoneId, scrollToGrid = false) {
+  state.focusZone = zoneId || null;
+  if (zoneId) {
+    state.selectedSlot = { zone_id: zoneId, slot_number: state.selectedSlot.zone_id === zoneId ? state.selectedSlot.slot_number : 1 };
+  }
+  renderSitePlan();
+  renderSidebarZoneStats();
+  renderZonesBoard();
+  renderMobileQuickBar();
+  syncPlanGridVisibility();
+
+  if (scrollToGrid && state.focusZone) {
+    setPlanView('grid');
+    scrollToZoneSection(state.focusZone);
+  }
+}
+
+function updateZoneFocusBar() {
+  if (!els.zoneFocusBar) return;
+  if (!state.focusZone || state.planView === 'grid') {
+    els.zoneFocusBar.classList.add('hidden');
+    return;
+  }
+  const zone = getZone(state.focusZone);
+  const occupied = state.boats.filter((b) => b.zone_id === zone.id).length;
+  els.zoneFocusBar.classList.remove('hidden');
+  els.zoneFocusTitle.textContent = zone.name;
+  els.zoneFocusMeta.textContent = `${occupied} / ${zone.count} occupées • ${zone.description}`;
+}
+
+function scrollToZoneSection(zoneId) {
+  const section = document.querySelector(`.zone-section[data-zone-id="${zoneId}"]`);
+  section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function selectSlot(zoneId, slotNumber, openModal = false) {
+  state.selectedSlot = { zone_id: zoneId, slot_number: slotNumber };
+  state.focusZone = zoneId;
+  const boat = getBoatBySlot(zoneId, slotNumber);
+  state.selectedBoatId = boat?.id || null;
+  renderSitePlan();
+  renderSidebarZoneStats();
+  renderZonesBoard();
+  renderMobileQuickBar();
+  syncPlanGridVisibility();
+  if (openModal && (boat || canManageBoats())) {
+    openBoatModal(boat, state.selectedSlot);
+  }
+}
+
+function getZoneOccupancyRate(zoneId) {
+  const zone = getZone(zoneId);
+  const occupied = state.boats.filter((b) => b.zone_id === zoneId).length;
+  return Math.round((occupied / zone.count) * 100);
+}
+
+function renderSitePlan() {
+  if (!els.sitePlanMap) return;
+
+  const overlays = ZONES.map((zone) => {
+    const geom = ZONE_GEOMETRY[zone.id];
+    const occupied = state.boats.filter((b) => b.zone_id === zone.id).length;
+    const rate = getZoneOccupancyRate(zone.id);
+    const focused = state.focusZone === zone.id;
+    const dimmed = state.focusZone && !focused;
+    const highOccupancy = rate >= 85;
+
+    const slots = Array.from({ length: zone.count }, (_, index) => {
+      const slot = index + 1;
+      const boat = getBoatBySlot(zone.id, slot);
+      const selected =
+        state.selectedSlot.zone_id === zone.id && state.selectedSlot.slot_number === slot;
+      const statusClass = boat ? `status-${boat.status}` : '';
+      const occupiedClass = boat ? 'is-occupied' : 'plan-slot-free';
+      const selectedClass = selected ? 'is-selected' : '';
+      const tooltip = escapeHtml(planSlotTooltip(zone.id, slot, boat));
+      const ariaLabel = boat
+        ? `${formatEmplacement(zone.id, slot)}, ${displayBoatName(boat)}, ${displayOwnerName(boat)}`
+        : `${formatEmplacement(zone.id, slot)}, libre`;
+      return `<button type="button" class="plan-slot ${occupiedClass} ${statusClass} ${selectedClass}" data-zone="${zone.id}" data-slot="${slot}" title="${tooltip}" aria-label="${escapeHtml(ariaLabel)}">${renderPlanSlotMarkup(zone.id, slot, boat, selected)}</button>`;
+    }).join('');
+
+    return `
+      <div
+        class="zone-overlay zone-overlay-row zone-overlay-${zone.id.toLowerCase()} ${focused ? 'is-focused' : ''} ${dimmed ? 'is-dimmed' : ''} ${highOccupancy ? 'zone-high' : ''}"
+        data-zone="${zone.id}"
+        style="left:${geom.left};top:${geom.top};width:${geom.width};height:${geom.height}"
+        role="group"
+        aria-label="${escapeHtml(zone.name)}, ${occupied} sur ${zone.count} places occupées"
+      >
+        <button type="button" class="zone-overlay-header zone-overlay-focus" data-zone="${zone.id}" aria-label="Sélectionner ${escapeHtml(zone.name)}">
+          <span class="zone-overlay-label">${escapeHtml(zone.name)}</span>
+          <span class="zone-overlay-count">${occupied}/${zone.count}</span>
+        </button>
+        <div class="zone-overlay-fill" aria-hidden="true"><span style="width:${rate}%"></span></div>
+        <div class="zone-mini-slots">${slots}</div>
+      </div>
+    `;
+  }).join('');
+
+  els.sitePlanMap.innerHTML = `
+    <div class="site-plan-frame">
+      <img class="site-plan-photo" src="${PLAN_REFERENCE_IMAGE}" alt="Vue aérienne des emplacements CNH — zones A, B et C" />
+      <div class="site-plan-overlays">${overlays}</div>
+    </div>
+  `;
+  syncPlanDisplaySize();
+}
+
+/** Affiche le plan à la bonne échelle (sans étirement) pour que les zones restent alignées */
+function syncPlanDisplaySize() {
+  const map = els.sitePlanMap;
+  const frame = map?.querySelector('.site-plan-frame');
+  const img = map?.querySelector('.site-plan-photo');
+  if (!map || !frame || !img) return;
+
+  const apply = () => {
+    const natW = img.naturalWidth;
+    const natH = img.naturalHeight;
+    if (!natW || !natH) return;
+
+    const maxHeight = Math.min(window.innerHeight * 0.78, 900);
+    const maxWidth = map.clientWidth - 8;
+    const scale = Math.min(maxHeight / natH, maxWidth / natW);
+    const displayW = Math.round(natW * scale);
+    const displayH = Math.round(natH * scale);
+
+    frame.style.width = `${displayW}px`;
+    frame.style.height = `${displayH}px`;
+  };
+
+  if (img.complete) {
+    apply();
+  } else {
+    img.addEventListener('load', apply, { once: true });
+  }
+}
+
+function renderSidebarZoneStats() {
+  if (!els.sidebarZoneStats) return;
+  els.sidebarZoneStats.innerHTML = `
+    <small>Plan du site</small>
+    ${ZONES.map((zone) => {
+      const occupied = state.boats.filter((b) => b.zone_id === zone.id).length;
+      const rate = getZoneOccupancyRate(zone.id);
+      const active = state.focusZone === zone.id;
+      const slotRange = `${getGlobalSlotNumber(zone.id, 1)}–${getGlobalSlotNumber(zone.id, zone.count)}`;
+      return `
+        <button type="button" class="sidebar-zone-item ${active ? 'is-active' : ''}" data-sidebar-zone="${zone.id}">
+          <strong>${escapeHtml(zone.name)}</strong>
+          <span class="sidebar-zone-bar" aria-hidden="true"><span style="width:${rate}%"></span></span>
+          <span>${slotRange} · ${occupied}/${zone.count}</span>
+        </button>
+      `;
+    }).join('')}
+  `;
 }
 
 function renderStats() {
@@ -985,128 +1262,93 @@ function renderStats() {
   els.statComplete.textContent = `${completeness}%`;
 }
 
+function renderCompactSlotCard(zoneId, slot, boat, selected) {
+  const global = getGlobalSlotNumber(zoneId, slot);
+  const title = boat ? truncatePlanText(displayBoatName(boat), 14) : 'Libre';
+  const meta = boat ? truncatePlanText(displayOwnerName(boat), 12) : '';
+  return `
+    <button type="button" class="slot-card slot-card-compact ${boat ? 'is-occupied' : ''} ${selected ? 'is-selected' : ''}" data-zone="${zoneId}" data-slot="${slot}" title="${escapeHtml(planSlotTooltip(zoneId, slot, boat))}">
+      <span class="slot-index">${global}</span>
+      <span class="slot-compact-text">
+        <span class="slot-title">${escapeHtml(title)}</span>
+        ${meta ? `<span class="slot-meta">${escapeHtml(meta)}</span>` : ''}
+      </span>
+    </button>
+  `;
+}
+
 function renderZonesBoard() {
-  els.zonesBoard.innerHTML = ZONES.map((zone) => {
-    const boatsInZone = state.boats.filter((boat) => boat.zone_id === zone.id);
-    const rate = Math.round((boatsInZone.length / zone.count) * 100);
-    const slots = Array.from({ length: zone.count }, (_, index) => {
-      const slot = index + 1;
-      const boat = getBoatBySlot(zone.id, slot);
-      const selected = state.selectedSlot.zone_id === zone.id && state.selectedSlot.slot_number === slot;
-      return `
+  const isCompact = state.planView === 'grid';
+  const zonesToShow =
+    isCompact || !state.focusZone ? ZONES : ZONES.filter((z) => z.id === state.focusZone);
+
+  els.zonesBoard.classList.toggle('zones-board-compact', isCompact);
+
+  els.zonesBoard.innerHTML = zonesToShow
+    .map((zone) => {
+      const boatsInZone = state.boats.filter((boat) => boat.zone_id === zone.id);
+      const rate = Math.round((boatsInZone.length / zone.count) * 100);
+      const slotRange = `${getGlobalSlotNumber(zone.id, 1)}–${getGlobalSlotNumber(zone.id, zone.count)}`;
+      const highlighted = state.focusZone === zone.id;
+      const slots = Array.from({ length: zone.count }, (_, index) => {
+        const slot = index + 1;
+        const boat = getBoatBySlot(zone.id, slot);
+        const selected = state.selectedSlot.zone_id === zone.id && state.selectedSlot.slot_number === slot;
+        if (isCompact) {
+          return renderCompactSlotCard(zone.id, slot, boat, selected);
+        }
+        const global = getGlobalSlotNumber(zone.id, slot);
+        return `
         <button type="button" class="slot-card ${boat ? 'is-occupied' : ''} ${selected ? 'is-selected' : ''}" data-zone="${zone.id}" data-slot="${slot}">
-          <span class="slot-index">Place ${slot}</span>
-          <span class="slot-title">${escapeHtml(boat?.boat_name || 'Libre')}</span>
-          <span class="slot-subtitle">${boat ? `${escapeHtml(displayOwnerName(boat))} • ${escapeHtml(STATUS_LABELS[boat.status])}` : 'Disponible pour affectation'}</span>
+          <span class="slot-index">${global}</span>
+          <span class="slot-title">${escapeHtml(boat ? displayBoatName(boat) : 'Libre')}</span>
+          <span class="slot-subtitle">${boat ? `${escapeHtml(displayOwnerName(boat))}${boat.owner_phone ? ` • ${escapeHtml(boat.owner_phone)}` : ''} • ${escapeHtml(STATUS_LABELS[boat.status])}` : 'Disponible'}</span>
         </button>
       `;
-    }).join('');
-    return `
-      <section class="zone-section">
-        <div class="zone-header">
+      }).join('');
+
+      const slotGridClass = isCompact
+        ? `slot-grid-compact slot-grid-cols-${zone.count > 12 ? 'dense' : 'std'}`
+        : 'slot-grid slot-grid-vertical';
+
+      return `
+      <section class="zone-section ${highlighted ? 'is-highlighted' : ''}" data-zone-id="${zone.id}" id="zoneSection-${zone.id}">
+        <div class="zone-header zone-header-compact">
           <div>
             <h4>${escapeHtml(zone.name)}</h4>
-            <div class="zone-meta">${escapeHtml(zone.description)} • ${zone.count} places</div>
+            ${isCompact ? `<div class="zone-meta">N° ${slotRange} • ${boatsInZone.length}/${zone.count} • ${rate}%</div>` : `<div class="zone-meta">Emplacements ${slotRange} • ${zone.count} places</div>`}
           </div>
-          <div class="chip-row">
-            <span class="chip occupied">Occupées : ${boatsInZone.length}</span>
-            <span class="chip free">Libres : ${zone.count - boatsInZone.length}</span>
-            <span class="chip selected">Taux : ${rate}%</span>
-          </div>
+          ${isCompact ? '' : `<div class="chip-row">
+            <span class="chip occupied">${boatsInZone.length} occupées</span>
+            <span class="chip free">${zone.count - boatsInZone.length} libres</span>
+            <span class="chip selected">${rate}%</span>
+          </div>`}
         </div>
-        <div class="slot-grid">${slots}</div>
+        <div class="${slotGridClass}" aria-label="Places ${escapeHtml(zone.name)}">${slots}</div>
       </section>
     `;
-  }).join('');
-}
-
-function renderSelectedSlot() {
-  const zone = getZone(state.selectedSlot.zone_id);
-  const boat = getBoatBySlot(state.selectedSlot.zone_id, state.selectedSlot.slot_number);
-
-  if (!boat) {
-    els.selectedSlotCard.className = 'selected-slot-card';
-    els.selectedSlotCard.innerHTML = `
-      <strong>${escapeHtml(zone.name)} • Place ${state.selectedSlot.slot_number}</strong>
-      <p class="meta">Cette place est actuellement libre.</p>
-      <div class="selected-slot-grid">
-        <div class="kv-box"><span>Zone</span>${escapeHtml(zone.name)}</div>
-        <div class="kv-box"><span>Disponibilité</span>Libre</div>
-      </div>
-      ${canManageBoats() ? '<button id="quickCreateButton" class="primary-button">Créer une fiche sur cette place</button>' : '<div class="meta">Accès en lecture seule.</div>'}
-    `;
-    document.getElementById('quickCreateButton')?.addEventListener('click', () => openBoatModal(null, state.selectedSlot));
-    return;
-  }
-
-  els.selectedSlotCard.className = 'selected-slot-card';
-  els.selectedSlotCard.innerHTML = `
-    <strong>${escapeHtml(zone.name)} • Place ${boat.slot_number}</strong>
-    <div class="chip-row">
-      <span class="chip selected">${escapeHtml(STATUS_LABELS[boat.status])}</span>
-      <span class="chip occupied">Licence ${escapeHtml(boat.licence_number || '—')}</span>
-    </div>
-    <div class="selected-slot-grid">
-      <div class="kv-box"><span>Bateau</span>${escapeHtml(displayBoatName(boat))}</div>
-      <div class="kv-box"><span>Propriétaire</span>${escapeHtml(displayOwnerName(boat))}</div>
-      <div class="kv-box"><span>Téléphone</span>${escapeHtml(boat.owner_phone || 'Non renseigné')}</div>
-      <div class="kv-box"><span>Email</span>${escapeHtml(boat.owner_email || 'Non renseigné')}</div>
-      <div class="kv-box"><span>Type</span>${escapeHtml(boat.boat_type || 'Non renseigné')}</div>
-      <div class="kv-box"><span>Immatriculation</span>${escapeHtml(boat.registration_number || 'Non renseignée')}</div>
-    </div>
-    <div class="card-actions">
-      <button class="card-button" id="openSelectedBoatButton">Ouvrir la fiche</button>
-      ${canManageBoats() ? '<button class="card-button danger" id="deleteSelectedBoatButton">Supprimer</button>' : ''}
-    </div>
-  `;
-  document.getElementById('openSelectedBoatButton')?.addEventListener('click', () => openBoatModal(boat, state.selectedSlot));
-  document.getElementById('deleteSelectedBoatButton')?.addEventListener('click', () => deleteBoatFlow(boat.id));
-}
-
-function renderSummary() {
-  const maintenanceCount = state.boats.filter((boat) => boat.status === 'maintenance').length;
-  const photoCount = state.boats.filter((boat) => boat.photo_data).length;
-  const mostFilled = [...ZONES]
-    .map((zone) => ({ zone, count: state.boats.filter((boat) => boat.zone_id === zone.id).length }))
-    .sort((a, b) => b.count - a.count)[0];
-
-  els.summaryCards.innerHTML = [
-    {
-      title: mostFilled ? mostFilled.zone.name : '—',
-      text: 'Zone la plus occupée',
-      detail: mostFilled ? `${mostFilled.count} bateaux enregistrés` : 'Aucune donnée',
-    },
-    {
-      title: String(maintenanceCount),
-      text: 'Bateaux en maintenance',
-      detail: 'Suivi atelier / remise en état',
-    },
-    {
-      title: String(photoCount),
-      text: 'Photos disponibles',
-      detail: 'Fiches visuellement complètes',
-    },
-  ]
-    .map(
-      (item) => `
-      <div class="summary-item">
-        <strong>${escapeHtml(item.title)}</strong>
-        <div>${escapeHtml(item.text)}</div>
-        <small class="subtle-text">${escapeHtml(item.detail)}</small>
-      </div>
-    `,
-    )
+    })
     .join('');
 }
 
 function renderMobileQuickBar() {
   if (!els.mobileQuickBar) return;
+  const showOnMobile =
+    window.innerWidth <= MOBILE_BREAKPOINT &&
+    state.activeTab === 'dashboardTab' &&
+    !els.appView.classList.contains('hidden');
+  els.mobileQuickBar.classList.toggle('hidden', !showOnMobile);
+
   const zone = getZone(state.selectedSlot.zone_id);
   const boat = getBoatBySlot(state.selectedSlot.zone_id, state.selectedSlot.slot_number);
+  const detail = boat
+    ? `${escapeHtml(displayBoatName(boat))} — ${escapeHtml(displayOwnerName(boat))}`
+  : 'Emplacement libre';
   els.mobileQuickBar.innerHTML = `
     <div>
-      <strong>${escapeHtml(zone.name)} • Place ${state.selectedSlot.slot_number}</strong>
-      <div class="subtle-text">${boat ? escapeHtml(displayBoatName(boat)) : 'Place libre'}</div>
+      <strong>${escapeHtml(formatEmplacement(state.selectedSlot.zone_id, state.selectedSlot.slot_number))}</strong>
+      <div class="subtle-text">${escapeHtml(zone.name)}</div>
+      <div class="subtle-text">${detail}</div>
     </div>
     <div class="mobile-quick-actions">
       ${boat ? '<button id="mobileQuickOpen" class="secondary-button small-button">Fiche</button>' : canManageBoats() ? '<button id="mobileQuickCreate" class="primary-button small-button">Créer</button>' : ''}
@@ -1133,7 +1375,8 @@ function matchesFilters(boat) {
     boat.notes,
     boat.equipment,
     zone.name,
-    `place ${boat.slot_number}`,
+    formatEmplacement(boat.zone_id, boat.slot_number),
+    `emplacement ${getGlobalSlotNumber(boat.zone_id, boat.slot_number)}`,
   ]
     .join(' ')
     .toLowerCase();
@@ -1179,7 +1422,7 @@ function renderCardBoat(boat) {
           <span class="chip ${boat.status === 'actif' ? 'free' : boat.status === 'archive' ? 'selected' : 'occupied'}">${escapeHtml(STATUS_LABELS[boat.status])}</span>
         </div>
         <div class="chip-row">
-          <span class="chip selected">${escapeHtml(zone.name)} • Place ${boat.slot_number}</span>
+          <span class="chip selected">${escapeHtml(formatEmplacement(boat.zone_id, boat.slot_number))}</span>
           <span class="chip occupied">${escapeHtml(boat.licence_number || 'Sans licence')}</span>
         </div>
         <div class="boat-card-meta">
@@ -1221,7 +1464,7 @@ function renderCompactBoat(boat) {
               <span class="compact-status ${boat.status}">${escapeHtml(STATUS_LABELS[boat.status])}</span>
             </div>
             <div class="compact-boat-meta">${escapeHtml(displayOwnerName(boat))}</div>
-            <div class="compact-boat-subline">${escapeHtml(zone.name)} • Place ${boat.slot_number} • ${escapeHtml(boat.licence_number || 'Sans licence')}</div>
+            <div class="compact-boat-subline">${escapeHtml(formatEmplacement(boat.zone_id, boat.slot_number))} • ${escapeHtml(boat.licence_number || 'Sans licence')}</div>
           </div>
           <div class="compact-boat-chevron">›</div>
         </div>
@@ -1328,7 +1571,7 @@ function openBoatModal(boat = null, presetSlot = { zone_id: 'A', slot_number: 1 
   const slot = boat ? { zone_id: boat.zone_id, slot_number: boat.slot_number } : presetSlot;
   els.boatModalTitle.textContent = boat
     ? `Fiche • ${displayBoatName(boat)}`
-    : `Nouvelle fiche • ${getZone(slot.zone_id).name} place ${slot.slot_number}`;
+    : `Nouvelle fiche • ${formatEmplacement(slot.zone_id, slot.slot_number)}`;
 
   els.boatId.value = boat?.id || '';
   els.boatPhotoData.value = boat?.photo_data || '';
@@ -1391,7 +1634,7 @@ async function saveBoatFlow(event) {
     (boat) => boat.zone_id === zoneId && boat.slot_number === slotNumber && boat.id !== boatId,
   );
   if (conflicting) {
-    showToast(`${getZone(zoneId).name} place ${slotNumber} est déjà occupée par ${conflicting.boat_name}.`, 'error');
+    showToast(`${formatEmplacement(zoneId, slotNumber)} est déjà occupé par ${conflicting.boat_name}.`, 'error');
     return;
   }
 
@@ -1419,10 +1662,10 @@ async function saveBoatFlow(event) {
   };
 
   if (!hasMeaningfulBoatInfo(draftPayload)) {
-    draftPayload.boat_name = `Bateau non renseigné • ${zoneId}${slotNumber}`;
+    draftPayload.boat_name = `Bateau non renseigné • ${formatEmplacement(zoneId, slotNumber)}`;
     draftPayload.notes = 'Fiche créée avec informations minimales.';
   } else if (!safeText(draftPayload.boat_name)) {
-    draftPayload.boat_name = `Bateau non renseigné • ${zoneId}${slotNumber}`;
+    draftPayload.boat_name = `Bateau non renseigné • ${formatEmplacement(zoneId, slotNumber)}`;
   }
 
   const payload = normalizeBoat(draftPayload);
@@ -1448,7 +1691,7 @@ async function saveBoatFlow(event) {
       await reloadData(false);
       const occupant = getBoatBySlot(zoneId, slotNumber);
       showToast(
-        `Place déjà occupée : ${getZone(zoneId).name} place ${slotNumber}${occupant ? ` par ${displayBoatName(occupant)}` : ''}.`,
+        `${formatEmplacement(zoneId, slotNumber)} déjà occupé${occupant ? ` par ${displayBoatName(occupant)}` : ''}.`,
         'error',
       );
       return;
@@ -1548,19 +1791,16 @@ function handleBoatGridClick(event) {
   if (action === 'open') {
     state.selectedBoatId = boat.id;
     state.selectedSlot = { zone_id: boat.zone_id, slot_number: boat.slot_number };
-    renderSelectedSlot();
+    renderSitePlan();
     renderZonesBoard();
     renderMobileQuickBar();
     openBoatModal(boat, state.selectedSlot);
   }
 
   if (action === 'locate') {
-    state.selectedBoatId = boat.id;
-    state.selectedSlot = { zone_id: boat.zone_id, slot_number: boat.slot_number };
-    renderSelectedSlot();
-    renderZonesBoard();
-    renderMobileQuickBar();
     switchTab('dashboardTab');
+    setPlanView('map');
+    selectSlot(boat.zone_id, boat.slot_number, false);
   }
 
   if (action === 'delete') {

@@ -126,9 +126,11 @@
       </section>
     </div>
 
+    <div id="sidebarBackdrop" class="sidebar-backdrop hidden" aria-hidden="true"></div>
+
     <div id="appView" class="app-shell hidden">
-      <aside class="sidebar">
-        <div class="sidebar-top">
+      <aside id="sidebar" class="sidebar" aria-label="Menu principal">
+        <div class="sidebar-head">
           <div class="brand-mini">
             <img src="assets/logo-cnh-real.jpg" alt="CNH" class="sidebar-logo" />
             <div>
@@ -136,8 +138,11 @@
               <strong>Marina Manager</strong>
             </div>
           </div>
+          <button type="button" id="sidebarClose" class="sidebar-close" aria-label="Fermer le menu">×</button>
+        </div>
 
-          <div class="sidebar-user panel-dark">
+        <div class="sidebar-account panel-dark">
+          <div class="sidebar-user">
             <div>
               <small>Connecté en tant que</small>
               <strong id="userDisplayName">—</strong>
@@ -145,23 +150,28 @@
             </div>
             <span id="syncPill" class="sync-pill">—</span>
           </div>
-
-          <nav class="sidebar-nav" aria-label="Navigation principale">
-            <button class="nav-button active" data-tab-target="dashboardTab">Tableau de bord</button>
-            <button class="nav-button" data-tab-target="fleetTab">Bateaux</button>
-            <button class="nav-button admin-only" data-tab-target="adminTab">Administration</button>
-          </nav>
+          <button id="logoutButton" type="button" class="ghost-button wide light-ghost sidebar-logout">Déconnexion</button>
         </div>
 
-        <div class="sidebar-bottom panel-dark">
+        <nav class="sidebar-nav" aria-label="Navigation principale">
+          <button class="nav-button active" data-tab-target="dashboardTab">Plan & emplacements</button>
+          <button class="nav-button" data-tab-target="fleetTab">Bateaux</button>
+          <button class="nav-button admin-only" data-tab-target="adminTab">Administration</button>
+        </nav>
+
+        <div class="sidebar-scroll panel-dark">
           <div id="sidebarZoneStats" class="sidebar-zone-stats"></div>
-          <button id="logoutButton" class="ghost-button wide light-ghost">Déconnexion</button>
         </div>
       </aside>
 
       <main class="workspace">
         <header class="workspace-header">
-          <div>
+          <button type="button" id="sidebarToggle" class="sidebar-toggle" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="sidebar">
+            <span class="sidebar-toggle-bar"></span>
+            <span class="sidebar-toggle-bar"></span>
+            <span class="sidebar-toggle-bar"></span>
+          </button>
+          <div class="workspace-header-main">
             <p class="eyebrow">Pilotage du parc nautique</p>
             <h2 id="workspaceTitle">Tableau de bord</h2>
             <p class="subtle-text" id="workspaceSubtitle">
@@ -231,8 +241,8 @@
             <section class="panel-surface main-panel plan-hub">
               <div class="panel-head sticky-mobile-head plan-hub-head">
                 <div>
-                  <h3>Plan du site — 46 emplacements</h3>
-                  <p>Photo aérienne du CNH avec zones A, B et C. Cliquez une zone ou une place pour gérer l’occupation.</p>
+                  <h3>Plan du site — 46 emplacements (n° 1 à 46)</h3>
+                  <p>3 rangées sur le plan : 18 (bas), 18 (milieu), 10 (haut). Survolez une place pour le détail.</p>
                 </div>
                 <div class="plan-toolbar">
                   <div class="plan-view-toggle" role="group" aria-label="Mode d’affichage du plan">
@@ -243,6 +253,7 @@
                     <span class="legend-pill free">Libre</span>
                     <span class="legend-pill occupied">Occupé</span>
                     <span class="legend-pill selected">Sélectionné</span>
+                    <span class="legend-pill plan-status-maint">Maintenance</span>
                   </div>
                 </div>
               </div>
@@ -256,34 +267,12 @@
                   </div>
                   <div class="zone-focus-actions">
                     <button type="button" id="zoneFocusAllBtn" class="ghost-button small-button">Toutes les zones</button>
-                    <button type="button" id="zoneFocusGridBtn" class="secondary-button small-button">Voir la grille</button>
+                    <button type="button" id="zoneFocusGridBtn" class="secondary-button small-button">Passer en grille</button>
                   </div>
                 </div>
               </div>
 
               <div id="zonesBoard" class="zones-board"></div>
-            </section>
-
-            <section class="right-stack">
-              <article class="panel-surface focus-panel mobile-first-panel">
-                <div class="panel-head compact-head">
-                  <div>
-                    <h3>Emplacement sélectionné</h3>
-                    <p>Détail de la place et de son occupation.</p>
-                  </div>
-                </div>
-                <div id="selectedSlotCard" class="selected-slot-card empty">Sélectionnez une place pour afficher son détail.</div>
-              </article>
-
-              <article class="panel-surface activity-panel mobile-first-panel">
-                <div class="panel-head compact-head">
-                  <div>
-                    <h3>Résumé rapide</h3>
-                    <p>Etat général du parc nautique.</p>
-                  </div>
-                </div>
-                <div id="summaryCards" class="summary-cards"></div>
-              </article>
             </section>
           </div>
         </section>
@@ -373,7 +362,7 @@
 
       <nav class="bottom-nav" aria-label="Navigation mobile">
         <button class="bottom-nav-button active" data-tab-target="dashboardTab">
-          <span>🏖️</span>
+          <span>🗺️</span>
           <small>Plan</small>
         </button>
         <button class="bottom-nav-button" data-tab-target="fleetTab">
@@ -487,7 +476,7 @@
                       <select id="zoneSelect"></select>
                     </div>
                     <div class="field-group">
-                      <label for="slotSelect">Place</label>
+                      <label for="slotSelect">Emplacement (n° 1–46)</label>
                       <select id="slotSelect"></select>
                     </div>
                     <div class="field-group">
