@@ -77,9 +77,19 @@ const DEFAULT_PHOTO = 'assets/placeholder-boat.svg';
 
 let planMapResizeObserver = null;
 
+// --- Appwrite Initialization ---
+const client = new Appwrite.Client();
+client
+    .setEndpoint(CONFIG.appwriteEndpoint)
+    .setProject(CONFIG.appwriteProjectId);
+
+const databases = new Appwrite.Databases(client);
+const account = new Appwrite.Account(client);
+
 const state = {
-  mode: isSupabaseReady() && CONFIG.demoMode !== true ? 'supabase' : 'demo',
+  mode: 'appwrite', // Force Appwrite mode
   boats: [],
+// ...existing code...
   profiles: [],
   session: null,
   currentProfile: null,
@@ -558,212 +568,102 @@ const demoApi = {
   },
 };
 
-const supabaseApi = {
-  baseHeaders(token) {
-    const headers = {
-      apikey: CONFIG.supabaseAnonKey,
-      'Content-Type': 'application/json',
-    };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    return headers;
-  },
-
-  saveSession(session) {
-    localStorage.setItem(STORAGE_KEYS.SUPABASE_SESSION, JSON.stringify(session));
-  },
-
-  getStoredSession() {
-    const raw = localStorage.getItem(STORAGE_KEYS.SUPABASE_SESSION);
-    return raw ? JSON.parse(raw) : null;
-  },
-
-  clearSession() {
-    localStorage.removeItem(STORAGE_KEYS.SUPABASE_SESSION);
-  },
-
-  async authFetch(path, options = {}, token) {
-    const response = await fetch(`${CONFIG.supabaseUrl}${path}`, {
-      ...options,
-      headers: {
-        ...this.baseHeaders(token),
-        ...(options.headers || {}),
-      },
-    });
-    const text = await response.text();
-    const data = text ? JSON.parse(text) : null;
-    if (!response.ok) {
-      throw new Error(data?.msg || data?.error_description || data?.message || 'Erreur Supabase.');
-    }
-    return data;
-  },
-
-  async restFetch(table, { method = 'GET', query = '', body, token, headers = {} } = {}) {
-    const response = await fetch(`${CONFIG.supabaseUrl}/rest/v1/${table}${query}`, {
-      method,
-      headers: {
-        ...this.baseHeaders(token),
-        ...(body ? { Prefer: 'return=representation' } : {}),
-        ...headers,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const text = await response.text();
-    const data = text ? JSON.parse(text) : null;
-    if (!response.ok) {
-      throw new Error(data?.message || 'Erreur API base de données.');
-    }
-    return data;
-  },
-
+const appwriteApi = {
   async signIn(email, password) {
-    const session = await this.authFetch('/auth/v1/token?grant_type=password', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-    this.saveSession(session);
-    let profile;
     try {
-      profile = await this.fetchProfileById(session.user.id, session.access_token, session.user);
-    } catch (error) {
-      console.warn('Profil inaccessible, profil temporaire utilisé :', error);
-      profile = makeFallbackProfile(session.user);
+      const session = await account.createEmailSession(email, password);
+      // Appwrite doesn't have a "profiles" table by default, we use our collection
+      let profile;
+      try {
+        const response = await databases.listDocuments(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, [
+          Appwrite.Query.equal('email', email)
+        ]);
+        profile = normalizeProfile(response.documents[0] || { email, role: 'viewer' });
+      } catch (e) {
+        profile = normalizeProfile({ email, role: 'viewer' });
+      }
+      return { session, profile };
+    } catch (e) {
+      throw new Error('Email ou mot de passe invalide.');
     }
-    return { session, profile };
-  },
-
-  async refreshSession(refreshToken) {
-    const session = await this.authFetch('/auth/v1/token?grant_type=refresh_token', {
-      method: 'POST',
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    this.saveSession(session);
-    return session;
   },
 
   async restoreSession() {
-    let session = this.getStoredSession();
-    if (!session) return null;
-
-    const now = Math.floor(Date.now() / 1000);
-    if (session.expires_at && session.expires_at <= now + 30 && session.refresh_token) {
-      session = await this.refreshSession(session.refresh_token);
-    }
-
     try {
-      const user = await this.authFetch('/auth/v1/user', { method: 'GET' }, session.access_token);
+      const user = await account.get();
       let profile;
       try {
-        profile = await this.fetchProfileById(user.id, session.access_token, user);
-      } catch (error) {
-        console.warn('Profil inaccessible, profil temporaire utilisé :', error);
-        profile = makeFallbackProfile(user);
+        const response = await databases.listDocuments(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, [
+          Appwrite.Query.equal('email', user.email)
+        ]);
+        profile = normalizeProfile(response.documents[0] || { email: user.email, role: 'viewer' });
+      } catch (e) {
+        profile = normalizeProfile({ email: user.email, role: 'viewer' });
       }
-      session.user = user;
-      this.saveSession(session);
-      return { session, profile };
-    } catch (error) {
-      if (session.refresh_token) {
-        const refreshed = await this.refreshSession(session.refresh_token);
-        const user = await this.authFetch('/auth/v1/user', { method: 'GET' }, refreshed.access_token);
-        let profile;
-        try {
-          profile = await this.fetchProfileById(user.id, refreshed.access_token, user);
-        } catch (innerError) {
-          console.warn('Profil inaccessible après refresh, profil temporaire utilisé :', innerError);
-          profile = makeFallbackProfile(user);
-        }
-        refreshed.user = user;
-        this.saveSession(refreshed);
-        return { session: refreshed, profile };
-      }
-      this.clearSession();
+      return { session: { user }, profile };
+    } catch (e) {
       return null;
     }
   },
 
   async signOut() {
-    const session = this.getStoredSession();
-    if (session?.access_token) {
-      try {
-        await this.authFetch('/auth/v1/logout', { method: 'POST' }, session.access_token);
-      } catch {
-        // ignore
-      }
-    }
-    this.clearSession();
+    await account.deleteSession('current');
   },
 
   async changePassword(newPassword) {
-    const session = this.getStoredSession();
-    if (!session?.access_token) throw new Error('Session indisponible.');
-
-    await this.authFetch(
-      '/auth/v1/user',
-      { method: 'PUT', body: JSON.stringify({ password: newPassword }) },
-      session.access_token,
-    );
-    const updated = await this.updateProfile(session.user.id, { must_change_password: false }, session.access_token);
-    return updated;
-  },
-
-  async fetchProfileById(profileId, token, user = null) {
-    const response = await this.restFetch('profiles', { query: `?id=eq.${profileId}&select=*`, token });
-    return normalizeProfile(response?.[0] || makeFallbackProfile(user || state.session?.user || { id: profileId }));
+    await account.updatePassword(newPassword);
+    return { role: 'viewer' }; // Simplified
   },
 
   async fetchBoats() {
-    const session = this.getStoredSession();
-    const response = await this.restFetch('boats', {
-      query: '?select=*&order=zone_id.asc,slot_number.asc',
-      token: session.access_token,
-    });
-    return (response || []).map(normalizeBoat).sort(sortBoats);
+    const response = await databases.listDocuments(
+      CONFIG.appwriteDatabaseId,
+      CONFIG.appwriteCollectionId
+    );
+    return response.documents.map(doc => ({
+      id: doc.$id,
+      ...doc
+    })).map(normalizeBoat).sort(sortBoats);
   },
 
   async upsertBoat(boat) {
-    const session = this.getStoredSession();
-    const [saved] = await this.restFetch('boats', {
-      method: 'POST',
-      query: '?on_conflict=id',
-      token: session.access_token,
-      headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-      body: normalizeBoat(boat),
-    });
-    return normalizeBoat(saved);
+    const payload = normalizeBoat(boat);
+    const id = boat.id || Appwrite.ID.unique();
+    
+    try {
+      // Try to update
+      await databases.updateDocument(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, id, payload);
+    } catch (e) {
+      // If not found, create
+      await databases.createDocument(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, id, payload);
+    }
+    return { id, ...payload };
   },
 
   async deleteBoat(boatId) {
-    const session = this.getStoredSession();
-    await this.restFetch('boats', {
-      method: 'DELETE',
-      query: `?id=eq.${boatId}`,
-      token: session.access_token,
-      headers: { Prefer: 'return=minimal' },
-    });
+    await databases.deleteDocument(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, boatId);
   },
 
   async fetchProfiles() {
-    const session = this.getStoredSession();
-    const response = await this.restFetch('profiles', {
-      query: '?select=*&order=created_at.asc',
-      token: session.access_token,
-    });
-    return (response || []).map(normalizeProfile);
+    const response = await databases.listDocuments(
+      CONFIG.appwriteDatabaseId,
+      'profiles_col' // Using the ID from our setup script
+    );
+    return response.documents.map(doc => normalizeProfile({ id: doc.$id, ...doc }));
   },
 
-  async updateProfile(profileId, patch, tokenOverride) {
-    const token = tokenOverride || this.getStoredSession()?.access_token;
-    const [updated] = await this.restFetch('profiles', {
-      method: 'PATCH',
-      query: `?id=eq.${profileId}`,
-      token,
-      body: { ...patch, updated_at: new Date().toISOString() },
-    });
-    return normalizeProfile(updated || { id: profileId, ...patch });
+  async updateProfile(profileId, patch) {
+    const updated = await databases.updateDocument(
+      CONFIG.appwriteDatabaseId,
+      'profiles_col',
+      profileId,
+      { ...patch, updated_at: new Date().toISOString() }
+    );
+    return normalizeProfile(updated);
   },
 };
 
-const api = state.mode === 'supabase' ? supabaseApi : demoApi;
+const api = state.mode === 'appwrite' ? appwriteApi : (state.mode === 'supabase' ? supabaseApi : demoApi);
 
 function populateZones() {
   els.zoneFilter.innerHTML = ['<option value="all">Toutes les zones</option>']
