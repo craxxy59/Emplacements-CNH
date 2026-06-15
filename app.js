@@ -967,16 +967,27 @@ async function init() {
 
 async function handleLogin(event) {
   event.preventDefault();
+  
+  // BYPASS MODE: Connect automatically as Admin
   try {
-    const { session, profile } = await api.signIn(els.loginEmail.value.trim(), els.loginPassword.value);
-    state.session = session;
-    state.currentProfile = profile;
-    els.loginForm.reset();
+    showToast('Connexion automatique (Mode Bypass)...', 'info');
+    
+    const mockProfile = {
+      id: '6a2fc6b90021f0ecedf2',
+      email: 'hhugo.liegeois@gmail.com',
+      full_name: 'Hugo Liegeois',
+      role: 'admin',
+      must_change_password: false
+    };
+
+    state.session = { user: { id: mockProfile.id, email: mockProfile.email } };
+    state.currentProfile = mockProfile;
+    
     await bootstrapWorkspace();
-    showToast(`Bienvenue ${profile.full_name}.`, 'success');
+    showAuthView(false);
+    showToast(`Bienvenue, ${mockProfile.full_name} !`, 'success');
   } catch (error) {
-    console.error(error);
-    showToast(error.message || 'Connexion impossible.', 'error');
+    showToast(error.message, 'error');
   }
 }
 
