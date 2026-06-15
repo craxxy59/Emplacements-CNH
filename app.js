@@ -630,12 +630,17 @@ const appwriteApi = {
     const payload = normalizeBoat(boat);
     const id = boat.id || Appwrite.ID.unique();
     
+    // Compatibility layer: Appwrite sometimes expects dashes instead of underscores
+    const appwritePayload = { ...payload };
+    if (payload.zone_id) appwritePayload['zone-id'] = payload.zone_id;
+    if (payload.slot_number) appwritePayload['slot-number'] = payload.slot_number;
+    
     try {
       // Try to update
-      await databases.updateDocument(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, id, payload);
+      await databases.updateDocument(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, id, appwritePayload);
     } catch (e) {
       // If not found, create
-      await databases.createDocument(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, id, payload);
+      await databases.createDocument(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, id, appwritePayload);
     }
     return { id, ...payload };
   },
