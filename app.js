@@ -218,9 +218,6 @@ const tabMeta = {
   },
 };
 
-function isSupabaseReady() {
-  return Boolean(CONFIG.supabaseUrl && CONFIG.supabaseAnonKey);
-}
 
 function loadUiPrefs() {
   try {
@@ -668,7 +665,7 @@ const appwriteApi = {
   },
 };
 
-const api = state.mode === 'appwrite' ? appwriteApi : (state.mode === 'supabase' ? supabaseApi : demoApi);
+const api = appwriteApi;
 
 function populateZones() {
   els.zoneFilter.innerHTML = ['<option value="all">Toutes les zones</option>']
