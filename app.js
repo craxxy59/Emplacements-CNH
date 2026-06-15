@@ -881,8 +881,8 @@ function resetPlanFullscreenLayout() {
 }
 
 function updateModeBadge() {
-  if (state.mode === 'supabase') {
-    els.modeBadge.textContent = 'Mode connecté • Supabase + synchronisation en ligne';
+  if (state.mode === 'appwrite') {
+    els.modeBadge.textContent = 'Mode connecté • Appwrite + synchronisation en ligne';
     els.demoHelp.classList.add('hidden');
   } else {
     els.modeBadge.textContent = 'Mode démo local • expérience interactive immédiate';
@@ -1068,8 +1068,8 @@ function hydrateCurrentUserCard() {
   els.accountRoleChip.className = `chip ${profile.role === 'admin' ? 'selected' : profile.role === 'manager' ? 'occupied' : 'free'}`;
   els.accountPasswordChip.textContent = profile.must_change_password ? 'Mot de passe à renouveler' : 'Mot de passe à jour';
   els.accountPasswordChip.className = `chip ${profile.must_change_password ? 'occupied' : 'free'}`;
-  els.syncPill.textContent = state.mode === 'supabase' ? 'Synchronisé en ligne' : 'Mode démo local';
-  els.syncPill.className = `sync-pill ${state.mode === 'supabase' ? 'online' : 'demo'}`;
+  els.syncPill.textContent = state.mode === 'appwrite' ? 'Synchronisé en ligne' : 'Mode démo local';
+  els.syncPill.className = `sync-pill ${state.mode === 'appwrite' ? 'online' : 'demo'}`;
 }
 
 function renderAll() {
@@ -1558,8 +1558,8 @@ function renderCompactBoat(boat) {
 
 function renderProfiles() {
   els.profilesNotice.textContent =
-    state.mode === 'supabase'
-      ? 'Version en ligne finalisée : créez les comptes dans Supabase Auth, puis gérez ici leurs rôles et le changement de mot de passe.'
+    state.mode === 'appwrite'
+      ? 'Version en ligne finalisée : créez les comptes dans Appwrite Auth, puis gérez ici leurs rôles et le changement de mot de passe.'
       : 'Mode démo : comptes locaux inclus pour tester les rôles et la sécurité.';
 
   if (!isAdmin()) {
