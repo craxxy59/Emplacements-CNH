@@ -77,14 +77,6 @@ const DEFAULT_PHOTO = 'assets/placeholder-boat.svg';
 
 let planMapResizeObserver = null;
 
-// --- Appwrite Initialization ---
-const client = new Appwrite.Client();
-client
-    .setEndpoint(CONFIG.appwriteEndpoint)
-    .setProject(CONFIG.appwriteProjectId);
-
-const databases = new Appwrite.Databases(client);
-const account = new Appwrite.Account(client);
 
 const state = {
   mode: 'appwrite', // Force Appwrite mode
@@ -1059,18 +1051,6 @@ async function init() {
     return;
   }
 
-  try {
-    const restored = await api.restoreSession();
-    if (restored) {
-      state.session = restored.session;
-      state.currentProfile = restored.profile;
-      await bootstrapWorkspace();
-      return;
-    }
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || 'Impossible de restaurer la session.', 'error');
-  }
 
   showAuth();
 }
