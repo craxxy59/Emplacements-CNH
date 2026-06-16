@@ -1,0 +1,9 @@
+{
+  "name": "cnh-marina-manager-netlify-functions",
+  "version": "1.0.0",
+  "description": "Netlify Functions for CNH Marina Manager",
+  "main": "index.js",
+  "dependencies": {
+    "appwrite": "^14.0.0"
+  }
+}

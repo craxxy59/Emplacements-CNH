@@ -665,7 +665,99 @@ const appwriteApi = {
   },
 };
 
-const api = appwriteApi;
+// Proxy API for Netlify Functions
+const proxyApi = {
+  async signIn(email, password) {
+    const response = await fetch('/api/signIn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    if (!response.ok) throw new Error('Email ou mot de passe invalide.');
+    return response.json();
+  },
+
+  async restoreSession() {
+    const response = await fetch('/api/restoreSession', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) return null;
+    return response.json();
+  },
+
+  async signOut() {
+    await fetch('/api/signOut', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+  },
+
+  async changePassword(newPassword) {
+    const response = await fetch('/api/changePassword', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword })
+    });
+    if (!response.ok) throw new Error('Impossible de changer le mot de passe.');
+    return response.json();
+  },
+
+  async fetchBoats() {
+    const response = await fetch('/api/fetchBoats', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) throw new Error('Impossible de récupérer les bateaux.');
+    return response.json();
+  },
+
+  async upsertBoat(boat) {
+    const response = await fetch('/api/upsertBoat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(boat)
+    });
+    if (!response.ok) throw new Error('Erreur lors de l\'enregistrement du bateau.');
+    return response.json();
+  },
+
+  async deleteBoat(boatId) {
+    const response = await fetch(`/api/deleteBoat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ boatId })
+    });
+    if (!response.ok) throw new Error('Erreur lors de la suppression du bateau.');
+    return response.json();
+  },
+
+  async fetchProfiles() {
+    const response = await fetch('/api/fetchProfiles', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) throw new Error('Impossible de récupérer les profils.');
+    return response.json();
+  },
+
+  async updateProfile(profileId, patch) {
+    const response = await fetch(`/api/updateProfile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profileId, ...patch })
+    });
+    if (!response.ok) throw new Error('Impossible de mettre à jour le profil.');
+    return response.json();
+  }
+};
+// Select API based on mode and environment
+const api = state.mode === 'demo' ? demoApi :
+           (window.location.hostname.includes('netlify.app') ||
+            window.location.hostname.includes('localhost') ||
+            window.location.hostname.includes('127.0.0.1'))
+             ? appwriteApi
+             : proxyApi;
 
 function populateZones() {
   els.zoneFilter.innerHTML = ['<option value="all">Toutes les zones</option>']
@@ -984,9 +1076,9 @@ async function handleLogin(event) {
 
     state.session = { user: { id: mockProfile.id, email: mockProfile.email } };
     state.currentProfile = mockProfile;
-    
+
     await bootstrapWorkspace();
-    showAuthView(false);
+    showApp();
     showToast(`Bienvenue, ${mockProfile.full_name} !`, 'success');
   } catch (error) {
     showToast(error.message, 'error');
