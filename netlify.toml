@@ -15,5 +15,5 @@
 # Redirect API requests to our Netlify function
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/appwrite-proxy/:splat"
+  to = "/.netlify/functions/data.js/:splat"
   status = 200

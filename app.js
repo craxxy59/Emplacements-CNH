@@ -114,6 +114,12 @@ const state = {
   },
 };
 
+const APP_PASSWORD = 'CNHardelot';
+const STORAGE_KEY_TOKEN = 'cnh-app-token';
+
+function isAuthenticated() { return !!localStorage.getItem(STORAGE_KEY_TOKEN); }
+function setAuthenticated(flag) { if(flag) localStorage.setItem(STORAGE_KEY_TOKEN,'true'); else localStorage.removeItem(STORAGE_KEY_TOKEN); }
+
 const els = {
   authView: document.getElementById('authView'),
   appView: document.getElementById('appView'),
@@ -751,13 +757,9 @@ const proxyApi = {
     return response.json();
   }
 };
-// Select API based on mode and environment
-const api = state.mode === 'demo' ? demoApi :
-           (window.location.hostname.includes('netlify.app') ||
-            window.location.hostname.includes('localhost') ||
-            window.location.hostname.includes('127.0.0.1'))
-             ? appwriteApi
-             : proxyApi;
+const api = proxyApi;
+
+
 
 function populateZones() {
   els.zoneFilter.innerHTML = ['<option value="all">Toutes les zones</option>']
@@ -1043,6 +1045,20 @@ async function init() {
     demoApi.ensureSeed();
   }
 
+  if (isAuthenticated()) {
+    state.session = { user: { id: 'shared', email: 'shared@cnh.local' } };
+    state.currentProfile = {
+      id: 'shared',
+      email: 'shared@cnh.local',
+      full_name: 'Utilisateur Partagé',
+      role: 'admin',
+      must_change_password: false
+    };
+    await bootstrapWorkspace();
+    showApp();
+    return;
+  }
+
   try {
     const restored = await api.restoreSession();
     if (restored) {
@@ -1061,46 +1077,39 @@ async function init() {
 
 async function handleLogin(event) {
   event.preventDefault();
-  
-  // BYPASS MODE: Connect automatically as Admin
-  try {
-    showToast('Connexion automatique (Mode Bypass)...', 'info');
-    
-    const mockProfile = {
-      id: '6a2fc6b90021f0ecedf2',
-      email: 'hhugo.liegeois@gmail.com',
-      full_name: 'Hugo Liegeois',
+  const password = els.loginPassword.value;
+  if (password === APP_PASSWORD) {
+    setAuthenticated(true);
+    state.session = { user: { id: 'shared', email: 'shared@cnh.local' } };
+    state.currentProfile = {
+      id: 'shared',
+      email: 'shared@cnh.local',
+      full_name: 'Utilisateur Partagé',
       role: 'admin',
       must_change_password: false
     };
-
-    state.session = { user: { id: mockProfile.id, email: mockProfile.email } };
-    state.currentProfile = mockProfile;
-
     await bootstrapWorkspace();
     showApp();
-    showToast(`Bienvenue, ${mockProfile.full_name} !`, 'success');
-  } catch (error) {
-    showToast(error.message, 'error');
+    showToast('Connexion réussie !', 'success');
+  } else {
+    showToast('Mot de passe incorrect.', 'error');
+    els.loginPassword.value = '';
   }
 }
 
 async function handleLogout() {
-  try {
-    await api.signOut();
-  } finally {
-    state.session = null;
-    state.currentProfile = null;
-    state.profiles = [];
-    state.boats = [];
-    state.selectedBoatId = null;
-    state.selectedSlot = { zone_id: 'A', slot_number: 1 };
-    state.forcePasswordChange = false;
-    closeModal('boatModal');
-    closeModal('passwordModal');
-    setSidebarOpen(false);
-    showAuth();
-  }
+  setAuthenticated(false);
+  state.session = null;
+  state.currentProfile = null;
+  state.profiles = [];
+  state.boats = [];
+  state.selectedBoatId = null;
+  state.selectedSlot = { zone_id: 'A', slot_number: 1 };
+  state.forcePasswordChange = false;
+  closeModal('boatModal');
+  closeModal('passwordModal');
+  setSidebarOpen(false);
+  showAuth();
 }
 
 async function bootstrapWorkspace() {
