@@ -29,24 +29,24 @@ exports.handler = async (event) => {
       case "upsertBoat": {
         const body = JSON.parse(event.body || "{}");
         const boat = body.boat || body;
-        if (!boat || !boat.id) throw new Error("Bateau invalide (id requis)");
+        if (!boat || !boat.id) throw new Error("Bateau invalide");
 
-        const idx = data.boats.findIndex((b) => b.id === boat.id);
+        const idx = data.boats.findIndex(function(b) { return b.id === boat.id; });
         if (idx >= 0) {
           data.boats[idx] = boat;
         } else {
           data.boats.push(boat);
         }
-        await store.set("data.json", JSON.stringify(data, null, 2));
-        result = { boat };
+        await store.set("data.json", JSON.stringify(data));
+        result = { boat: boat };
         break;
       }
 
       case "deleteBoat": {
         const body = JSON.parse(event.body || "{}");
-        const { boatId } = body;
-        data.boats = data.boats.filter((b) => b.id !== boatId);
-        await store.set("data.json", JSON.stringify(data, null, 2));
+        const boatId = body.boatId;
+        data.boats = data.boats.filter(function(b) { return b.id !== boatId; });
+        await store.set("data.json", JSON.stringify(data));
         result = { success: true };
         break;
       }
@@ -59,7 +59,7 @@ exports.handler = async (event) => {
         return {
           statusCode: 404,
           headers: CORS_HEADERS,
-          body: JSON.stringify({ error: "Route inconnue: " + action }),
+          body: JSON.stringify({ error: "Route inconnue" }),
         };
     }
 
@@ -73,7 +73,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 500,
       headers: CORS_HEADERS,
-      body: JSON.stringify({ error: err.message || "Erreur interne" }),
+      body: JSON.stringify({ error: err.message }),
     };
   }
 };
