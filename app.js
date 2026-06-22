@@ -79,9 +79,8 @@ let planMapResizeObserver = null;
 
 
 const state = {
-  mode: 'appwrite', // Force Appwrite mode
+  mode: 'shared', // Mode partagé pour tous
   boats: [],
-// ...existing code...
   profiles: [],
   session: null,
   currentProfile: null,
@@ -238,15 +237,15 @@ function getZone(zoneId) {
 }
 
 function getRole() {
-  return state.currentProfile?.role || 'viewer';
+  return 'admin';
 }
 
 function canManageBoats() {
-  return ['admin', 'manager'].includes(getRole());
+  return true;
 }
 
 function isAdmin() {
-  return getRole() === 'admin';
+  return true;
 }
 
 function createId(prefix = 'id') {
@@ -707,17 +706,19 @@ const proxyApi = {
       headers: { 'Content-Type': 'application/json' }
     });
     if (!response.ok) throw new Error('Impossible de récupérer les bateaux.');
-    return response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data.boats || []);
   },
 
   async upsertBoat(boat) {
     const response = await fetch('/api/upsertBoat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(boat)
+      body: JSON.stringify({ boat })
     });
     if (!response.ok) throw new Error('Erreur lors de l\'enregistrement du bateau.');
-    return response.json();
+    const data = await response.json();
+    return data.boat || data;
   },
 
   async deleteBoat(boatId) {
@@ -736,7 +737,8 @@ const proxyApi = {
       headers: { 'Content-Type': 'application/json' }
     });
     if (!response.ok) throw new Error('Impossible de récupérer les profils.');
-    return response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data.profiles || []);
   },
 
   async updateProfile(profileId, patch) {
@@ -864,14 +866,18 @@ function bindEvents() {
     }
   });
 
-  els.openPasswordModalButton.addEventListener('click', () => openPasswordModal(false));
-  els.passwordForm.addEventListener('submit', handlePasswordChange);
+  // Password modal and profile management disabled in shared mode
+  if (els.openPasswordModalButton) els.openPasswordModalButton.addEventListener('click', () => openPasswordModal(false));
+  if (els.passwordForm) els.passwordForm.addEventListener('submit', handlePasswordChange);
 
-  els.profilesList.addEventListener('click', async (event) => {
-    const saveButton = event.target.closest('[data-save-profile]');
-    if (!saveButton) return;
-    await updateProfileRow(saveButton.dataset.saveProfile);
-  });
+  // Profile row editing disabled in shared mode
+  if (els.profilesList) {
+    els.profilesList.addEventListener('click', async (event) => {
+      const saveButton = event.target.closest('[data-save-profile]');
+      if (!saveButton) return;
+      await updateProfileRow(saveButton.dataset.saveProfile);
+    });
+  }
 
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
@@ -880,7 +886,7 @@ function bindEvents() {
         return;
       }
       setSidebarOpen(false);
-      if (!state.forcePasswordChange) closeModal('passwordModal');
+      closeModal('passwordModal');
       closeModal('boatModal');
     }
   });
@@ -967,13 +973,7 @@ function resetPlanFullscreenLayout() {
 }
 
 function updateModeBadge() {
-  if (state.mode === 'appwrite') {
-    els.modeBadge.textContent = 'Mode connecté • Appwrite + synchronisation en ligne';
-    els.demoHelp.classList.add('hidden');
-  } else {
-    els.modeBadge.textContent = 'Mode démo local • expérience interactive immédiate';
-    els.demoHelp.classList.remove('hidden');
-  }
+  els.modeBadge.textContent = 'Mode connecté • Données partagées en temps réel';
 }
 
 function setSidebarOpen(open) {
@@ -1033,16 +1033,12 @@ async function init() {
   bindEvents();
   registerServiceWorker();
 
-  if (state.mode === 'demo') {
-    demoApi.ensureSeed();
-  }
-
   if (isAuthenticated()) {
     state.session = { user: { id: 'shared', email: 'shared@cnh.local' } };
     state.currentProfile = {
       id: 'shared',
       email: 'shared@cnh.local',
-      full_name: 'Utilisateur Partagé',
+      full_name: 'CNH',
       role: 'admin',
       must_change_password: false
     };
@@ -1050,7 +1046,6 @@ async function init() {
     showApp();
     return;
   }
-
 
   showAuth();
 }
@@ -1064,7 +1059,7 @@ async function handleLogin(event) {
     state.currentProfile = {
       id: 'shared',
       email: 'shared@cnh.local',
-      full_name: 'Utilisateur Partagé',
+      full_name: 'CNH',
       role: 'admin',
       must_change_password: false
     };
@@ -1074,6 +1069,7 @@ async function handleLogin(event) {
   } else {
     showToast('Mot de passe incorrect.', 'error');
     els.loginPassword.value = '';
+    els.loginPassword.focus();
   }
 }
 
@@ -1087,9 +1083,10 @@ async function handleLogout() {
   state.selectedSlot = { zone_id: 'A', slot_number: 1 };
   state.forcePasswordChange = false;
   closeModal('boatModal');
-  closeModal('passwordModal');
+  if (els.passwordModal) els.passwordModal.classList.add('hidden');
   setSidebarOpen(false);
   showAuth();
+  els.loginPassword.value = '';
 }
 
 async function bootstrapWorkspace() {
@@ -1098,15 +1095,12 @@ async function bootstrapWorkspace() {
   hydrateCurrentUserCard();
   setPlanView('map');
   await reloadData(false);
-  if (state.currentProfile?.must_change_password) {
-    openPasswordModal(true);
-  }
 }
 
 async function reloadData(showSuccessToast = false) {
   try {
     state.boats = (await api.fetchBoats()).map(normalizeBoat).sort(sortBoats);
-    state.profiles = isAdmin() ? await api.fetchProfiles() : state.currentProfile ? [state.currentProfile] : [];
+    state.profiles = [];
     renderAll();
     if (showSuccessToast) showToast('Synchronisation terminée.', 'success');
   } catch (error) {
@@ -1139,18 +1133,14 @@ function applyRoleVisibility() {
 }
 
 function hydrateCurrentUserCard() {
-  if (!state.currentProfile) return;
-  const profile = state.currentProfile;
-  els.userDisplayName.textContent = profile.full_name || profile.email;
-  els.userDisplayRole.textContent = `${ROLE_LABELS[profile.role]} • ${profile.email}`;
-  els.accountCardName.textContent = profile.full_name || profile.email;
-  els.accountCardEmail.textContent = profile.email;
-  els.accountRoleChip.textContent = ROLE_LABELS[profile.role];
-  els.accountRoleChip.className = `chip ${profile.role === 'admin' ? 'selected' : profile.role === 'manager' ? 'occupied' : 'free'}`;
-  els.accountPasswordChip.textContent = profile.must_change_password ? 'Mot de passe à renouveler' : 'Mot de passe à jour';
-  els.accountPasswordChip.className = `chip ${profile.must_change_password ? 'occupied' : 'free'}`;
-  els.syncPill.textContent = state.mode === 'appwrite' ? 'Synchronisé en ligne' : 'Mode démo local';
-  els.syncPill.className = `sync-pill ${state.mode === 'appwrite' ? 'online' : 'demo'}`;
+  els.userDisplayName.textContent = 'Club Nautique Hardelot';
+  els.userDisplayRole.textContent = 'Accès partagé • Tous administrateurs';
+  if (els.accountCardName) els.accountCardName.textContent = 'CNH';
+  if (els.accountCardEmail) els.accountCardEmail.textContent = 'contact@cnhardelot.fr';
+  if (els.accountRoleChip) { els.accountRoleChip.textContent = 'Administrateur'; els.accountRoleChip.className = 'chip selected'; }
+  if (els.accountPasswordChip) { els.accountPasswordChip.textContent = 'Accès par mot de passe'; els.accountPasswordChip.className = 'chip free'; }
+  els.syncPill.textContent = 'Données partagées';
+  els.syncPill.className = 'sync-pill online';
 }
 
 function renderAll() {
@@ -1638,79 +1628,22 @@ function renderCompactBoat(boat) {
 }
 
 function renderProfiles() {
-  els.profilesNotice.textContent =
-    state.mode === 'appwrite'
-      ? 'Version en ligne finalisée : créez les comptes dans Appwrite Auth, puis gérez ici leurs rôles et le changement de mot de passe.'
-      : 'Mode démo : comptes locaux inclus pour tester les rôles et la sécurité.';
-
-  if (!isAdmin()) {
+  if (els.profilesNotice) {
+    els.profilesNotice.textContent = 'Mode partagé : un seul mot de passe pour tous les utilisateurs. Tous les utilisateurs sont administrateurs.';
+  }
+  if (els.profilesList) {
     els.profilesList.innerHTML = `
       <div class="empty-state">
-        <h3>Accès réservé à l’administrateur</h3>
-        <p>Connectez-vous avec un compte admin pour gérer les profils.</p>
+        <h3>Accès partagé</h3>
+        <p>Tous les utilisateurs partagent le même mot de passe d'accès et disposent des droits administrateur.</p>
+        <p style="margin-top:12px"><strong>Mot de passe :</strong> CNHardelot</p>
       </div>
     `;
-    return;
   }
-
-  if (!state.profiles.length) {
-    els.profilesList.innerHTML = `
-      <div class="empty-state">
-        <h3>Aucun profil disponible</h3>
-        <p>Les profils apparaîtront après création / connexion des utilisateurs.</p>
-      </div>
-    `;
-    return;
-  }
-
-  els.profilesList.innerHTML = state.profiles.map((profile) => `
-    <article class="profile-card">
-      <div class="profile-head">
-        <div>
-          <strong>${escapeHtml(profile.full_name || profile.email)}</strong>
-          <div class="subtle-text">${escapeHtml(profile.email)}</div>
-        </div>
-        <span class="chip ${profile.role === 'admin' ? 'selected' : profile.role === 'manager' ? 'occupied' : 'free'}">${escapeHtml(ROLE_LABELS[profile.role])}</span>
-      </div>
-      <div class="profile-actions">
-        <div class="field-group">
-          <label for="role-${profile.id}">Rôle</label>
-          <select id="role-${profile.id}" data-profile-role="${profile.id}">
-            <option value="admin" ${profile.role === 'admin' ? 'selected' : ''}>Administrateur</option>
-            <option value="manager" ${profile.role === 'manager' ? 'selected' : ''}>Gestion</option>
-            <option value="viewer" ${profile.role === 'viewer' ? 'selected' : ''}>Lecture seule</option>
-          </select>
-        </div>
-        <div class="field-group">
-          <label for="must-${profile.id}">Forcer nouveau MDP</label>
-          <select id="must-${profile.id}" data-profile-password="${profile.id}">
-            <option value="false" ${!profile.must_change_password ? 'selected' : ''}>Non</option>
-            <option value="true" ${profile.must_change_password ? 'selected' : ''}>Oui</option>
-          </select>
-        </div>
-        <button class="secondary-button" data-save-profile="${profile.id}">Enregistrer</button>
-      </div>
-    </article>
-  `).join('');
 }
 
 async function updateProfileRow(profileId) {
-  try {
-    const role = document.querySelector(`[data-profile-role="${profileId}"]`)?.value || 'viewer';
-    const mustChange = document.querySelector(`[data-profile-password="${profileId}"]`)?.value === 'true';
-    const updated = await api.updateProfile(profileId, { role, must_change_password: mustChange });
-    state.profiles = state.profiles.map((profile) => (profile.id === profileId ? updated : profile));
-    if (state.currentProfile?.id === profileId) {
-      state.currentProfile = { ...state.currentProfile, ...updated };
-      hydrateCurrentUserCard();
-      applyRoleVisibility();
-    }
-    renderProfiles();
-    showToast('Profil mis à jour.', 'success');
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || 'Impossible de mettre à jour le profil.', 'error');
-  }
+  showToast('Gestion des profils désactivée en mode partagé.', 'info');
 }
 
 function isBoatComplete(boat) {
@@ -2040,7 +1973,6 @@ function openModal(modalId) {
 }
 
 function closeModal(modalId) {
-  if (modalId === 'passwordModal' && state.forcePasswordChange) return;
   const modal = document.getElementById(modalId);
   if (!modal) return;
   modal.classList.add('hidden');
@@ -2048,44 +1980,12 @@ function closeModal(modalId) {
 }
 
 function openPasswordModal(force) {
-  state.forcePasswordChange = force;
-  els.passwordModalText.textContent = force
-    ? 'Pour sécuriser le compte administrateur, le mot de passe doit être changé après la première connexion.'
-    : 'Vous pouvez mettre à jour votre mot de passe à tout moment.';
-  els.passwordForm.reset();
-  openModal('passwordModal');
+  showToast('Le mot de passe est partagé : CNHardelot. Contactez l\'administrateur pour le changer.', 'info');
 }
 
 async function handlePasswordChange(event) {
   event.preventDefault();
-  const password = els.newPassword.value;
-  const confirm = els.confirmPassword.value;
-  if (password.length < 8) {
-    showToast('Le mot de passe doit contenir au moins 8 caractères.', 'error');
-    return;
-  }
-  if (password !== confirm) {
-    showToast('Les mots de passe ne correspondent pas.', 'error');
-    return;
-  }
-
-  try {
-    const updatedProfile = await api.changePassword(password);
-    state.currentProfile = { ...state.currentProfile, ...updatedProfile, must_change_password: false };
-    state.forcePasswordChange = false;
-    closeModal('passwordModal');
-    if (isAdmin()) {
-      state.profiles = state.profiles.map((profile) =>
-        profile.id === state.currentProfile.id ? { ...profile, must_change_password: false } : profile,
-      );
-      renderProfiles();
-    }
-    hydrateCurrentUserCard();
-    showToast('Mot de passe mis à jour.', 'success');
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || 'Impossible de changer le mot de passe.', 'error');
-  }
+  showToast('Le mot de passe est partagé : CNHardelot. Contactez l\'administrateur pour le changer.', 'info');
 }
 
 function exportData() {

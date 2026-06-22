@@ -1,13 +1,12 @@
 {
   "name": "CNH Marina Manager",
   "short_name": "CNH Marina",
-  "description": "Gestion professionnelle des emplacements et bateaux du Club Nautique d'Hardelot Plage.",
-  "start_url": "./index.html",
+  "description": "Gestion des emplacements bateaux du Club Nautique d'Hardelot Plage",
+  "start_url": "./",
   "display": "standalone",
-  "background_color": "#071826",
-  "theme_color": "#0d2740",
-  "lang": "fr",
   "orientation": "portrait-primary",
+  "background_color": "#0d2740",
+  "theme_color": "#0d2740",
   "icons": [
     {
       "src": "assets/icon-192.svg",

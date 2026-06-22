@@ -15,7 +15,6 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
-    <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.0"></script>
   </head>
   <body>
     <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -95,37 +94,13 @@
 
           <form id="loginForm" class="stack-form">
             <div class="field-group">
-              <label for="loginEmail">Email</label>
-              <input id="loginEmail" name="loginEmail" type="email" autocomplete="username" required placeholder="admin@cnh.fr" />
+              <label for="loginPassword">Mot de passe d'accès</label>
+              <input id="loginPassword" name="loginPassword" type="password" autocomplete="current-password" required placeholder="Mot de passe CNH" />
             </div>
-            <div class="field-group">
-              <label for="loginPassword">Mot de passe</label>
-              <input id="loginPassword" name="loginPassword" type="password" autocomplete="current-password" required placeholder="Votre mot de passe" />
-            </div>
-            <button type="submit" class="primary-button wide">Se connecter</button>
+            <button type="submit" class="primary-button wide">Accéder à l'application</button>
           </form>
 
-          <div id="demoHelp" class="demo-help hidden">
-            <h3>Comptes de démonstration</h3>
-            <div class="demo-grid">
-              <div class="mini-card">
-                <strong>Admin</strong>
-                <span>admin@cnh.local</span>
-                <code>Admin1234!</code>
-              </div>
-              <div class="mini-card">
-                <strong>Équipe</strong>
-                <span>equipe@cnh.local</span>
-                <code>Staff1234!</code>
-              </div>
-              <div class="mini-card">
-                <strong>Lecture</strong>
-                <span>lecture@cnh.local</span>
-                <code>View1234!</code>
-              </div>
-            </div>
-            <small>Le compte admin doit changer son mot de passe à la première connexion.</small>
-          </div>
+
         </div>
       </section>
     </div>

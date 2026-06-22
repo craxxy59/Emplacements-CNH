@@ -1,14 +1,12 @@
-const CACHE_NAME = 'cnh-pwa-cache-v22';
+const CACHE_NAME = 'cnh-pwa-cache-v23';
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './config.js',
-  './config.example.js',
   './manifest.webmanifest',
   './assets/favicon.svg',
-  './assets/logo-cnh.svg',
   './assets/logo-cnh-real.jpg',
   './assets/icon-192.svg',
   './assets/icon-512.svg',
