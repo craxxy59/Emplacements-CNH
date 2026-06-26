@@ -1,4 +1,26 @@
 {
-  "boats": [],
+  "boats": [
+    {
+      "id": "32cdb06c-f723-4aca-9fd4-61af66bd600f",
+      "boat_name": "Hugo Liegeois",
+      "licence_number": "",
+      "registration_number": "",
+      "boat_type": "",
+      "status": "actif",
+      "owner_name": "",
+      "owner_phone": "0667947523",
+      "owner_email": "hhugo.liegeois@gmail.com",
+      "emergency_contact": "",
+      "zone_id": "B",
+      "slot_number": 4,
+      "length_m": "",
+      "width_m": "",
+      "equipment": "",
+      "notes": "",
+      "photo_data": "",
+      "created_at": "2026-06-26T19:48:34.524Z",
+      "updated_at": "2026-06-26T19:48:34.525Z"
+    }
+  ],
   "profiles": []
 }
