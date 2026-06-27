@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'cnh-marina-manager-data-v5';
   const AUTH_KEY = 'cnh-marina-manager-auth-v5';
-  const DEFAULT_PASSWORD = 'CNHardelot';
+  const DEFAULT_PASSWORD = 'CNH2026';
   const PLAN_IMAGE = 'plan-reference.png';
   const PLACEHOLDER_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="400" height="260" viewBox="0 0 400 260">
@@ -148,7 +148,7 @@
     event.preventDefault();
     const password = els.loginPassword?.value || '';
     if (password && password !== DEFAULT_PASSWORD) {
-      toast('Mot de passe incorrect. Mot de passe par défaut : CNHardelot', 'error');
+      toast('Mot de passe incorrect. Mot de passe par défaut : CNH2026', 'error');
       return;
     }
     showApp();

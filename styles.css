@@ -3297,3 +3297,26 @@ body.plan-only-mode #zonesBoard {
     align-items: center;
   }
 }
+
+/* Rendre les boutons du bandeau mobile toujours cliquables au-dessus du plan. */
+@media (max-width: 760px) {
+  body.plan-only-mode .plan-fullscreen-head {
+    position: relative;
+    z-index: 80;
+  }
+
+  body.plan-only-mode .plan-fullscreen-actions,
+  body.plan-only-mode .plan-fullscreen-actions > * {
+    pointer-events: auto !important;
+  }
+
+  body.plan-only-mode .fullscreen-hamburger {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  body.plan-only-mode .fullscreen-hamburger:active,
+  body.plan-only-mode .plan-fullscreen-actions .small-button:active {
+    transform: translateY(1px);
+  }
+}
