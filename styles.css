@@ -3555,3 +3555,16 @@ body.plan-only-mode #zonesBoard {
     display: inline-flex !important;
   }
 }
+
+/* Le formulaire de mots de passe doit passer devant le plan plein écran mobile. */
+@media (max-width: 760px) {
+  body.plan-fullscreen-open .modal-shell {
+    z-index: 420 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  body.plan-fullscreen-open .modal-card {
+    z-index: 421 !important;
+  }
+}

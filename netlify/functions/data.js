@@ -1,6 +1,6 @@
 const { getStore } = require('@netlify/blobs');
 
-const DEFAULT_DATA = { boats: [], profiles: [], settings: { passwords: { readonly: 'CNH2026', manager: 'CNH', admin: 'CNHardelot' } } };
+const DEFAULT_DATA = { boats: [], profiles: [] };
 const STORE_NAME = 'cnh-marina-data';
 const KEY = 'main';
 
@@ -50,7 +50,7 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'GET') {
     try {
       const saved = await store.get(KEY, { type: 'json' });
-      return jsonResponse(saved || DEFAULT_DATA);
+      return jsonResponse({ boats: Array.isArray(saved?.boats) ? saved.boats : [], profiles: Array.isArray(saved?.profiles) ? saved.profiles : [] });
     } catch (error) {
       return jsonResponse({
         ok: false,
@@ -66,7 +66,6 @@ exports.handler = async (event) => {
       const clean = {
         boats: Array.isArray(data.boats) ? data.boats : [],
         profiles: Array.isArray(data.profiles) ? data.profiles : [],
-        settings: data.settings && typeof data.settings === 'object' ? data.settings : DEFAULT_DATA.settings,
         updatedAt: new Date().toISOString()
       };
       await store.setJSON(KEY, clean);
