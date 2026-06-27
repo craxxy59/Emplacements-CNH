@@ -3908,3 +3908,30 @@ body.plan-only-mode #zonesBoard {
     display: none !important;
   }
 }
+
+/* Correctif mobile : rendre Export JSON / Import JSON clairement disponibles dans le menu hamburger. */
+@media (max-width: 760px) {
+  body.plan-only-mode .mobile-action-menu #fsExportBtn,
+  body.plan-only-mode .mobile-action-menu #fsImportBtn:not(.hidden-by-role) {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu .mobile-json-action {
+    min-height: 48px !important;
+    font-weight: 900;
+    border-radius: 14px;
+  }
+
+  body.plan-only-mode .mobile-action-menu #fsExportBtn {
+    background: linear-gradient(135deg, #0d5f8f, #3ea0d0) !important;
+    color: #fff !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu #fsImportBtn:not(.hidden-by-role) {
+    background: linear-gradient(135deg, #9b6b1d, #d3a14b) !important;
+    color: #fff !important;
+  }
+}
