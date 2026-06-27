@@ -391,7 +391,7 @@
           <button class="icon-button" data-close-modal="boatModal" aria-label="Fermer">×</button>
         </div>
 
-        <form id="boatForm" class="boat-form smartphone-form">
+        <form id="boatForm" class="boat-form smartphone-form" autocomplete="off">
           <input id="boatId" type="hidden" />
           <input id="boatPhotoData" type="hidden" />
 
@@ -415,19 +415,19 @@
                   <div class="form-grid section-body">
                     <div class="field-group full-span">
                       <label for="boatName">Nom du bateau</label>
-                      <input id="boatName" type="text" placeholder="Ex. Alizé" />
+                      <input id="boatName" autocomplete="off" type="text" />
                     </div>
                     <div class="field-group">
                       <label for="licenceNumber">N° de licence</label>
-                      <input id="licenceNumber" type="text" placeholder="CNH-2026-014" />
+                      <input id="licenceNumber" autocomplete="off" type="text" />
                     </div>
                     <div class="field-group">
                       <label for="registrationNumber">Immatriculation</label>
-                      <input id="registrationNumber" type="text" placeholder="DK123456" />
+                      <input id="registrationNumber" autocomplete="off" type="text" />
                     </div>
                     <div class="field-group">
                       <label for="boatType">Type de bateau</label>
-                      <input id="boatType" type="text" placeholder="Catamaran, dériveur, semi-rigide..." />
+                      <input id="boatType" autocomplete="off" type="text" />
                     </div>
                     <div class="field-group">
                       <label for="boatStatus">Statut</label>
@@ -449,19 +449,19 @@
                   <div class="form-grid section-body">
                     <div class="field-group">
                       <label for="ownerName">Propriétaire</label>
-                      <input id="ownerName" type="text" placeholder="Nom et prénom" />
+                      <input id="ownerName" autocomplete="off" type="text" />
                     </div>
                     <div class="field-group">
                       <label for="ownerPhone">Téléphone</label>
-                      <input id="ownerPhone" type="tel" placeholder="06 00 00 00 00" />
+                      <input id="ownerPhone" autocomplete="off" type="tel" />
                     </div>
                     <div class="field-group">
                       <label for="ownerEmail">Email</label>
-                      <input id="ownerEmail" type="email" placeholder="nom@email.fr" />
+                      <input id="ownerEmail" autocomplete="off" type="email" />
                     </div>
                     <div class="field-group">
                       <label for="emergencyContact">Contact d’urgence</label>
-                      <input id="emergencyContact" type="text" placeholder="Nom + téléphone" />
+                      <input id="emergencyContact" autocomplete="off" type="text" />
                     </div>
                   </div>
                 </section>
@@ -482,11 +482,11 @@
                     </div>
                     <div class="field-group">
                       <label for="lengthInput">Longueur (m)</label>
-                      <input id="lengthInput" type="number" min="0" step="0.1" placeholder="5.2" />
+                      <input id="lengthInput" type="number" min="0" step="0.1" />
                     </div>
                     <div class="field-group">
                       <label for="widthInput">Largeur (m)</label>
-                      <input id="widthInput" type="number" min="0" step="0.1" placeholder="2.1" />
+                      <input id="widthInput" type="number" min="0" step="0.1" />
                     </div>
                   </div>
                 </section>
@@ -499,11 +499,11 @@
                   <div class="form-grid section-body">
                     <div class="field-group full-span">
                       <label for="equipmentInput">Équipements / infos utiles</label>
-                      <input id="equipmentInput" type="text" placeholder="Remorque, bâche, code portail, assurance..." />
+                      <input id="equipmentInput" autocomplete="off" type="text" />
                     </div>
                     <div class="field-group full-span">
                       <label for="notesInput">Notes</label>
-                      <textarea id="notesInput" rows="5" placeholder="Commentaires libres, état général, consignes, dates importantes..."></textarea>
+                      <textarea id="notesInput" autocomplete="off" rows="5"></textarea>
                     </div>
                   </div>
                 </section>
