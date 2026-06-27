@@ -1,9 +1,9 @@
 ﻿{
-  "name": "cnh-marina-manager",
+  "name": "cnh-marina-manager-netlify-functions",
   "version": "1.0.0",
-  "description": "PWA de gestion des emplacements bateaux du Club Nautique d'Hardelot Plage",
-  "main": "index.html",
+  "description": "Netlify Functions for CNH Marina Manager",
+  "main": "index.js",
   "dependencies": {
-    "@netlify/blobs": "^8.0.0"
+    "appwrite": "^14.0.0"
   }
 }

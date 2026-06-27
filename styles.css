@@ -3176,3 +3176,26 @@ body.plan-only-mode #zonesBoard {
     font-size: 1rem;
   }
 }
+
+/* Correctif mobile : démarrer le plan tout à gauche pour voir les premiers emplacements de chaque rangée. */
+@media (max-width: 760px) {
+  .plan-fullscreen-body {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+  }
+
+  .site-plan-map--fullscreen,
+  .site-plan-map--fullscreen .site-plan-scroll {
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+  }
+
+  .site-plan-map--fullscreen .site-plan-scroll {
+    width: max-content !important;
+    min-width: 100% !important;
+  }
+
+  .site-plan-map--fullscreen .site-plan-frame {
+    margin-left: 0 !important;
+  }
+}
