@@ -8,7 +8,7 @@ const KEY = 'password-hashes';
 // Aucun mot de passe en clair n'est présent dans app.js.
 const DEFAULT_HASHES = {
   readonly: '7ca7991ff7b32be24a58293e79e479b50089e87e140084bb861ff28d32d4aaeb',
-  manager: '273ab832692e54bed7d1f368383fbce7ab6ed96d7483b1a043c4d129aea373e4',
+  manager: '00bbc646708559a07900e8e7b341d34f9a9fd44c3fd20b659ff8059e425f3527',
   admin: 'b92a5740ce59817cf38b088d15f652a498156e431631ba9982936ec14dfc4699'
 };
 
