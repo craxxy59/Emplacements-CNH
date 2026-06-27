@@ -3360,3 +3360,31 @@ body.plan-only-mode #zonesBoard {
     transform: translateX(0) !important;
   }
 }
+
+/* Demande finale : sur mobile, supprimer tous les boutons du plan et le menu hamburger. */
+@media (max-width: 760px) {
+  body.plan-only-mode .plan-fullscreen-head,
+  body.plan-only-mode .plan-fullscreen-actions,
+  body.plan-only-mode .fullscreen-hamburger,
+  body.plan-only-mode #fsMenuBtn,
+  body.plan-only-mode #fsRefreshBtn,
+  body.plan-only-mode #fsExportBtn,
+  body.plan-only-mode #fsImportBtn,
+  body.plan-only-mode #fsNewBoatBtn,
+  body.plan-only-mode #closePlanFullscreenBtn,
+  body.plan-only-mode .bottom-nav,
+  body.plan-only-mode .floating-add-button,
+  body.plan-only-mode .workspace-header,
+  body.plan-only-mode .open-plan-fullscreen-btn {
+    display: none !important;
+  }
+
+  body.plan-only-mode .plan-fullscreen-body {
+    padding: 0 !important;
+    height: 100vh !important;
+  }
+
+  body.plan-only-mode .plan-fullscreen {
+    background: #0a1f32;
+  }
+}

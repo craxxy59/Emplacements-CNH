@@ -4,6 +4,7 @@
   "description": "Netlify Functions for CNH Marina Manager",
   "main": "index.js",
   "dependencies": {
-    "appwrite": "^14.0.0"
+    "appwrite": "^14.0.0",
+    "@netlify/blobs": "^8.2.0"
   }
 }
