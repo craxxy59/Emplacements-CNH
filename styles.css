@@ -3320,3 +3320,43 @@ body.plan-only-mode #zonesBoard {
     transform: translateY(1px);
   }
 }
+
+/* Correctif définitif mobile : les actions du bandeau passent devant le plan et le menu. */
+@media (max-width: 760px) {
+  body.plan-only-mode .plan-fullscreen-head {
+    z-index: 150 !important;
+    pointer-events: auto !important;
+  }
+
+  body.plan-only-mode .plan-fullscreen-actions {
+    position: relative;
+    z-index: 151 !important;
+    pointer-events: auto !important;
+  }
+
+  body.plan-only-mode .plan-fullscreen-actions button,
+  body.plan-only-mode .plan-fullscreen-actions label {
+    position: relative;
+    z-index: 152 !important;
+    pointer-events: auto !important;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation !important;
+  }
+
+  body.plan-fullscreen-open .sidebar-backdrop {
+    z-index: 300 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  body.plan-fullscreen-open .sidebar {
+    z-index: 310 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  body.plan-fullscreen-open .sidebar.is-open {
+    transform: translateX(0) !important;
+  }
+}
