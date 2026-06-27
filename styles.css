@@ -3259,3 +3259,41 @@ body.plan-only-mode #zonesBoard {
     display: none !important;
   }
 }
+
+/* Mobile : remplacer "Menu" par un vrai bouton hamburger et supprimer la croix inutile. */
+.fullscreen-hamburger {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  body.plan-only-mode #closePlanFullscreenBtn {
+    display: none !important;
+  }
+
+  body.plan-only-mode .fullscreen-hamburger {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: 42px;
+    height: 38px;
+    padding: 9px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+  }
+
+  body.plan-only-mode .fullscreen-hamburger span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  body.plan-only-mode .plan-fullscreen-actions {
+    align-items: center;
+  }
+}
