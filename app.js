@@ -3,8 +3,7 @@
 
   const STORAGE_KEY = 'cnh-marina-manager-data-v5';
   const AUTH_KEY = 'cnh-marina-manager-auth-v5';
-  const READONLY_PASSWORD = 'CNH2026';
-  const ADMIN_PASSWORD = 'CNHardelot';
+  const DEFAULT_PASSWORDS = { readonly: 'CNH2026', admin: 'CNHardelot' };
   const SYNC_ENDPOINT = '/.netlify/functions/data';
   const PLAN_IMAGE = 'plan-reference.png';
   const PLACEHOLDER_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
@@ -47,6 +46,7 @@
   const state = {
     boats: [],
     profiles: [],
+    settings: { passwords: { ...DEFAULT_PASSWORDS } },
     selectedSlot: null,
     currentUser: null,
     planView: 'map',
@@ -62,11 +62,11 @@
       'sitePlanSection', 'sitePlanMap', 'zonesBoard', 'zoneFocusBar', 'zoneFocusTitle', 'zoneFocusMeta', 'zoneFocusAllBtn', 'zoneFocusGridBtn',
       'planMapViewBtn', 'planGridViewBtn', 'openPlanFullscreenBtn', 'planFullscreen', 'planFullscreenBody', 'closePlanFullscreenBtn',
       'statTotalSpots', 'statOccupied', 'statFree', 'statComplete', 'sidebarZoneStats', 'toastContainer',
-      'refreshButton', 'exportButton', 'importInput', 'openCreateBoatButton', 'floatingAddButton', 'boatGrid', 'searchInput', 'zoneFilter', 'statusFilter',
+      'refreshButton', 'exportButton', 'excelExportButton', 'importInput', 'openCreateBoatButton', 'floatingAddButton', 'mobileExcelButton', 'boatGrid', 'searchInput', 'zoneFilter', 'statusFilter',
       'boatModal', 'boatForm', 'boatId', 'boatPhotoData', 'boatPhotoPreview', 'boatPhotoInput', 'removeBoatPhotoButton', 'boatModalTitle',
       'boatName', 'licenceNumber', 'registrationNumber', 'boatType', 'boatStatus', 'ownerName', 'ownerPhone', 'ownerEmail', 'emergencyContact',
       'zoneSelect', 'slotSelect', 'lengthInput', 'widthInput', 'equipmentInput', 'notesInput', 'duplicateBoatButton', 'deleteBoatButton',
-      'passwordModal', 'passwordForm', 'newPassword', 'confirmPassword', 'openPasswordModalButton', 'accountCardName', 'accountCardEmail', 'accountRoleChip', 'accountPasswordChip',
+      'passwordModal', 'passwordForm', 'readonlyPasswordInput', 'adminPasswordInput', 'openPasswordModalButton', 'accountCardName', 'accountCardEmail', 'accountRoleChip', 'accountPasswordChip',
       'workspaceTitle', 'workspaceSubtitle', 'fsMenuBtn', 'fsRefreshBtn', 'fsExportBtn', 'fsImportBtn', 'fsImportInput', 'fsNewBoatBtn', 'sidebar', 'sidebarBackdrop', 'sidebarToggle', 'sidebarClose', 'cardModeButton', 'compactModeButton',
       'profilesNotice', 'profilesList'
     ].forEach((id) => { els[id] = $(id); });
@@ -78,6 +78,22 @@
   const canManage = () => !state.currentUser || state.currentUser.role !== 'lecture';
   const safeText = (value) => String(value ?? '').trim();
   const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `boat-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
+
+  function normalizeSettings(settings = {}) {
+    return {
+      ...settings,
+      passwords: {
+        readonly: safeText(settings?.passwords?.readonly) || DEFAULT_PASSWORDS.readonly,
+        admin: safeText(settings?.passwords?.admin) || DEFAULT_PASSWORDS.admin
+      }
+    };
+  }
+
+  function getPasswords() {
+    state.settings = normalizeSettings(state.settings);
+    return state.settings.passwords;
+  }
 
   function isLocalPreview() {
     return ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
@@ -124,12 +140,13 @@
 
     state.boats = Array.isArray(loaded?.boats) ? loaded.boats : [];
     state.profiles = Array.isArray(loaded?.profiles) ? loaded.profiles : [];
+    state.settings = normalizeSettings(loaded?.settings);
     saveLocalData();
   }
 
   function saveLocalData() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ boats: state.boats, profiles: state.profiles }, null, 2));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ boats: state.boats, profiles: state.profiles, settings: state.settings }, null, 2));
     } catch (error) {
       toast('Impossible d’enregistrer localement : stockage plein ou désactivé.', 'error');
     }
@@ -141,7 +158,7 @@
       const res = await fetch(SYNC_ENDPOINT, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ boats: state.boats, profiles: state.profiles })
+        body: JSON.stringify({ boats: state.boats, profiles: state.profiles, settings: state.settings })
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       state.remoteMode = true;
@@ -174,6 +191,7 @@
     }
     state.boats = Array.isArray(data.boats) ? data.boats : [];
     state.profiles = Array.isArray(data.profiles) ? data.profiles : [];
+    state.settings = normalizeSettings(data.settings);
     saveLocalData();
     renderAll();
     if (showToast) toast('Données récupérées depuis Netlify.', 'success');
@@ -233,13 +251,15 @@
     event.preventDefault();
     const password = els.loginPassword?.value || '';
 
-    if (password === READONLY_PASSWORD) {
+    const passwords = getPasswords();
+
+    if (password === passwords.readonly) {
       showApp({ name: 'Consultation CNH', role: 'lecture' });
       if (els.loginPassword) els.loginPassword.value = '';
       return;
     }
 
-    if (password === ADMIN_PASSWORD) {
+    if (password === passwords.admin) {
       showApp({ name: 'Administration CNH', role: 'admin' });
       if (els.loginPassword) els.loginPassword.value = '';
       return;
@@ -702,13 +722,78 @@
   }
 
   function exportJson() {
-    const blob = new Blob([JSON.stringify({ boats: state.boats, profiles: state.profiles }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ boats: state.boats, profiles: state.profiles, settings: state.settings }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `cnh-emplacements-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+
+  function excelEscape(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function exportExcel() {
+    const rows = allSlots().map((slot) => {
+      const boat = boatForSlot(slot);
+      const zone = findZoneBySlot(slot);
+      return {
+        emplacement: slot,
+        zone: zone?.name || '',
+        statut_place: boat ? 'Occupé' : 'Libre',
+        nom_bateau: boat?.name || '',
+        proprietaire: boat?.ownerName || '',
+        telephone: boat?.ownerPhone || '',
+        email: boat?.ownerEmail || '',
+        licence: boat?.licenceNumber || '',
+        immatriculation: boat?.registrationNumber || '',
+        type: boat?.boatType || '',
+        statut_bateau: boat?.status || '',
+        longueur: boat?.length || '',
+        largeur: boat?.width || '',
+        contact_urgence: boat?.emergencyContact || '',
+        equipements: boat?.equipment || '',
+        notes: boat?.notes || '',
+        mise_a_jour: boat?.updatedAt || ''
+      };
+    });
+
+    const headers = [
+      'Emplacement', 'Zone', 'Statut place', 'Nom bateau', 'Propriétaire', 'Téléphone', 'Email',
+      'Licence', 'Immatriculation', 'Type', 'Statut bateau', 'Longueur', 'Largeur',
+      'Contact urgence', 'Équipements', 'Notes', 'Mise à jour'
+    ];
+    const keys = ['emplacement','zone','statut_place','nom_bateau','proprietaire','telephone','email','licence','immatriculation','type','statut_bateau','longueur','largeur','contact_urgence','equipements','notes','mise_a_jour'];
+
+    const html = `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  table{border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px}
+  th{background:#0d2740;color:#fff;font-weight:bold}
+  th,td{border:1px solid #9fb3c4;padding:6px;vertical-align:top;mso-number-format:'\@'}
+</style></head><body>
+  <h2>CNH - Export emplacements</h2>
+  <p>Généré le ${excelEscape(new Date().toLocaleString('fr-FR'))}</p>
+  <table><thead><tr>${headers.map((h) => `<th>${excelEscape(h)}</th>`).join('')}</tr></thead>
+  <tbody>${rows.map((row) => `<tr>${keys.map((key) => `<td>${excelEscape(row[key])}</td>`).join('')}</tr>`).join('')}</tbody></table>
+</body></html>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cnh-emplacements-${new Date().toISOString().slice(0, 10)}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast('Document Excel généré.', 'success');
   }
 
   function importJson(event) {
@@ -720,6 +805,7 @@
         const data = JSON.parse(reader.result);
         state.boats = Array.isArray(data.boats) ? data.boats : [];
         state.profiles = Array.isArray(data.profiles) ? data.profiles : [];
+        state.settings = normalizeSettings(data.settings || state.settings);
         saveData(true);
         renderAll();
       } catch (_) {
@@ -823,7 +909,7 @@
   }
 
   function renderProfiles() {
-    if (els.profilesNotice) els.profilesNotice.textContent = 'Gestion locale : les fiches et exports/imports restent disponibles.';
+    if (els.profilesNotice) els.profilesNotice.textContent = 'L’administrateur peut modifier les données, exporter Excel et changer les 2 mots de passe.';
     if (els.profilesList) els.profilesList.innerHTML = '<div class="mini-card"><strong>CNH</strong><span>Administrateur local</span></div>';
   }
 
@@ -843,6 +929,8 @@
     els.refreshButton?.addEventListener('click', () => syncFromRemote(true));
     els.fsRefreshBtn?.addEventListener('click', doMobileRefresh);
     els.exportButton?.addEventListener('click', exportJson);
+    els.excelExportButton?.addEventListener('click', exportExcel);
+    els.mobileExcelButton?.addEventListener('click', exportExcel);
     els.fsExportBtn?.addEventListener('click', exportJson);
     els.importInput?.addEventListener('change', importJson);
     els.fsImportInput?.addEventListener('change', importJson);
@@ -874,14 +962,24 @@
     els.sidebarClose?.addEventListener('click', closeSidebar);
     els.sidebarBackdrop?.addEventListener('click', closeSidebar);
     els.openPasswordModalButton?.addEventListener('click', () => {
+      if (state.currentUser?.role !== 'admin') return toast('Accès administrateur requis.', 'error');
+      const passwords = getPasswords();
+      if (els.readonlyPasswordInput) els.readonlyPasswordInput.value = passwords.readonly;
+      if (els.adminPasswordInput) els.adminPasswordInput.value = passwords.admin;
       els.passwordModal?.classList.remove('hidden');
       els.passwordModal?.setAttribute('aria-hidden', 'false');
     });
     els.passwordForm?.addEventListener('submit', (event) => {
       event.preventDefault();
-      if (els.newPassword?.value !== els.confirmPassword?.value) return toast('Les mots de passe ne correspondent pas.', 'error');
+      if (state.currentUser?.role !== 'admin') return toast('Accès administrateur requis.', 'error');
+      const readonlyPassword = safeText(els.readonlyPasswordInput?.value);
+      const adminPassword = safeText(els.adminPasswordInput?.value);
+      if (readonlyPassword.length < 4 || adminPassword.length < 4) return toast('Chaque mot de passe doit contenir au moins 4 caractères.', 'error');
+      if (readonlyPassword === adminPassword) return toast('Les 2 mots de passe doivent être différents.', 'error');
+      state.settings = normalizeSettings({ ...state.settings, passwords: { readonly: readonlyPassword, admin: adminPassword } });
+      saveData(true);
       closeModal('passwordModal');
-      toast('Mot de passe local validé.', 'success');
+      toast('Les 2 mots de passe ont été mis à jour.', 'success');
     });
     document.querySelectorAll('[data-close-modal]').forEach((btn) => btn.addEventListener('click', () => closeModal(btn.dataset.closeModal)));
     document.querySelectorAll('[data-tab-target]').forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tabTarget)));

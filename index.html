@@ -138,6 +138,7 @@
           <div class="header-actions">
             <button id="refreshButton" class="secondary-button">Synchroniser</button>
             <button id="exportButton" class="secondary-button">Exporter JSON</button>
+            <button id="excelExportButton" class="secondary-button">Exporter Excel</button>
             <label for="importInput" class="secondary-button clickable manage-only">Importer</label>
             <input id="importInput" type="file" accept="application/json" hidden />
             <button id="openCreateBoatButton" class="primary-button manage-only">Nouvelle fiche</button>
@@ -301,7 +302,7 @@
                     <span id="accountPasswordChip" class="chip">—</span>
                   </div>
                 </div>
-                <button id="openPasswordModalButton" class="primary-button">Changer mon mot de passe</button>
+                <button id="openPasswordModalButton" class="primary-button">Modifier les mots de passe</button>
               </div>
             </article>
 
@@ -366,6 +367,7 @@
       </nav>
 
       <button id="floatingAddButton" class="floating-add-button manage-only" aria-label="Créer une fiche bateau">＋</button>
+      <button id="mobileExcelButton" class="mobile-excel-button" type="button">Excel</button>
     </div>
 
     <div id="boatModal" class="modal-shell hidden" aria-hidden="true">
@@ -516,23 +518,24 @@
         <div class="modal-head">
           <div>
             <p class="eyebrow">Sécurité</p>
-            <h3>Changer le mot de passe</h3>
+            <h3>Modifier les mots de passe</h3>
             <p id="passwordModalText" class="subtle-text">
-              Pour sécuriser le compte administrateur, le mot de passe doit être changé après la première connexion.
+              Compte administrateur uniquement : modifiez le mot de passe consultation et le mot de passe administration.
             </p>
           </div>
         </div>
 
         <form id="passwordForm" class="stack-form">
           <div class="field-group">
-            <label for="newPassword">Nouveau mot de passe</label>
-            <input id="newPassword" type="password" autocomplete="new-password" required minlength="8" placeholder="Minimum 8 caractères" />
+            <label for="readonlyPasswordInput">Mot de passe consultation</label>
+            <input id="readonlyPasswordInput" type="text" autocomplete="off" required minlength="4" placeholder="Mot de passe consultation" />
           </div>
           <div class="field-group">
-            <label for="confirmPassword">Confirmer le mot de passe</label>
-            <input id="confirmPassword" type="password" autocomplete="new-password" required minlength="8" placeholder="Retapez le mot de passe" />
+            <label for="adminPasswordInput">Mot de passe administration</label>
+            <input id="adminPasswordInput" type="text" autocomplete="off" required minlength="4" placeholder="Mot de passe administration" />
           </div>
-          <button type="submit" class="primary-button wide">Valider le nouveau mot de passe</button>
+          <button type="submit" class="primary-button wide">Enregistrer les 2 mots de passe</button>
+          <button type="button" class="ghost-button wide" data-close-modal="passwordModal">Fermer</button>
         </form>
       </div>
     </div>

@@ -3418,3 +3418,33 @@ body.plan-only-mode #zonesBoard {
   border-radius: 14px;
   font-size: 0.82rem;
 }
+
+/* Bouton export Excel mobile demandé */
+.mobile-excel-button {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  body.plan-only-mode .mobile-excel-button {
+    display: inline-flex !important;
+    position: fixed;
+    right: 12px;
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    z-index: 220;
+    min-height: 42px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    font-weight: 900;
+    background: linear-gradient(135deg, #16724f, #23a36e);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.22);
+    touch-action: manipulation;
+  }
+
+  body.plan-only-mode .mobile-excel-button:active {
+    transform: translateY(1px);
+  }
+}
