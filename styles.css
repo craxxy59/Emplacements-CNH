@@ -3739,3 +3739,172 @@ body.plan-only-mode #zonesBoard {
     min-height: 46px;
   }
 }
+
+/* Admin simplifié : une seule carte utile. */
+.admin-grid {
+  grid-template-columns: minmax(0, 720px);
+}
+
+/* Mobile debug / onglets Bateaux & Administration : interface adaptée téléphone. */
+@media (max-width: 760px) {
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace {
+    padding: 12px 12px calc(18px + env(safe-area-inset-bottom, 0px)) !important;
+    gap: 12px;
+    min-height: 100dvh;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header {
+    display: grid !important;
+    position: sticky !important;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 100;
+    margin: -12px -12px 0 !important;
+    padding: 10px 12px !important;
+    background: rgba(246,251,255,0.98) !important;
+    border-bottom: 1px solid rgba(10,37,62,0.10);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 22px rgba(8,31,51,0.08) !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header-main .eyebrow,
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header-main .subtle-text {
+    display: none !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    line-height: 1.2;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header .header-actions {
+    display: flex !important;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 8px;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header .header-actions > *,
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header .header-actions label {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .sidebar-toggle {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  /* Onglet bateaux */
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab .panel-surface,
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .panel-surface {
+    padding: 12px !important;
+    border-radius: 18px !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab .panel-head,
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .panel-head {
+    margin-bottom: 12px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab .panel-head h3,
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .panel-head h3 {
+    font-size: 1.05rem;
+    margin-bottom: 4px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab .panel-head p,
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .panel-head p {
+    display: none;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .toolbar-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .view-mode-toggle {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .view-mode-toggle .mode-toggle-button {
+    min-height: 40px;
+    border-radius: 12px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card {
+    padding: 12px !important;
+    border-radius: 16px !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card-top {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 10px;
+    align-items: center;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card-photo {
+    width: 72px !important;
+    height: 72px !important;
+    border-radius: 14px !important;
+    object-fit: cover;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card h4 {
+    font-size: 1rem;
+    margin: 4px 0;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card .card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  /* Onglet administration */
+  body.plan-only-mode:not(.plan-fullscreen-open) .admin-grid {
+    display: grid;
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .admin-card-stack {
+    gap: 10px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .mini-card.large-card {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #openPasswordModalButton {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 14px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .bottom-nav {
+    display: none !important;
+  }
+}

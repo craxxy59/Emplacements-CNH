@@ -1113,8 +1113,8 @@
   }
 
   function renderProfiles() {
-    if (els.profilesNotice) els.profilesNotice.textContent = 'L’administrateur peut modifier les données, exporter Excel et changer les 2 mots de passe.';
-    if (els.profilesList) els.profilesList.innerHTML = '<div class="mini-card"><strong>CNH</strong><span>Administrateur local</span></div>';
+    if (els.profilesNotice) els.profilesNotice.textContent = '';
+    if (els.profilesList) els.profilesList.innerHTML = '';
   }
 
   function bindEvents() {
