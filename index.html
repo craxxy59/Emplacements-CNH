@@ -29,11 +29,7 @@
           <div class="brand-logo brand-logo-fallback" aria-label="CNH">CNH</div>
           <div>
             <p class="eyebrow">Club Nautique d’Hardelot Plage</p>
-            <h1>Gestion premium des bateaux & emplacements</h1>
-            <p class="hero-text">
-              PWA professionnelle du CNH, optimisée mobile, avec compte administrateur,
-              changement de mot de passe au premier accès et synchronisation en ligne.
-            </p>
+            <h1>Gestion des emplacements CNH</h1>
           </div>
         </div>
 
@@ -62,28 +58,6 @@
           </div>
         </section>
 
-        <div class="hero-panels">
-          <article class="glass-card hero-feature-card">
-            <span class="feature-kicker">Pensée pour le club</span>
-            <h2>Une vue claire du parc bateaux</h2>
-            <ul class="feature-list">
-              <li>Plan interactif des 46 places</li>
-              <li>Fiches complètes avec photo</li>
-              <li>Recherche instantanée</li>
-              <li>Actions rapides par swipe sur mobile</li>
-              <li>Mode compact ultra lisible</li>
-              <li>Mode démo local + sync Supabase</li>
-            </ul>
-          </article>
-
-          <article class="glass-card hero-info-card">
-            <h3>Architecture choisie</h3>
-            <p><strong>Synchronisation :</strong> Supabase</p>
-            <p><strong>Hébergement conseillé :</strong> Netlify</p>
-            <p><strong>Rôles :</strong> admin, équipe, lecture seule</p>
-            <p><strong>Style :</strong> nautique premium CNH</p>
-          </article>
-        </div>
       </section>
 
       <section class="auth-panel">
@@ -92,14 +66,14 @@
             <div>
               <p class="eyebrow">Connexion sécurisée</p>
               <h2>Accéder à l’application</h2>
-              <p id="modeBadge" class="subtle-text">Chargement du mode d’application…</p>
+              <p id="modeBadge" class="subtle-text"></p>
             </div>
           </div>
 
           <form id="loginForm" class="stack-form">
             <div class="field-group">
               <label for="loginPassword">Mot de passe d'accès</label>
-              <input id="loginPassword" name="loginPassword" type="password" autocomplete="current-password" required placeholder="Mot de passe CNH" />
+              <input id="loginPassword" name="loginPassword" type="password" autocomplete="current-password" required placeholder="Mot de passe" />
             </div>
             <button type="submit" class="primary-button wide">Accéder à l'application</button>
           </form>

@@ -3,7 +3,8 @@
 
   const STORAGE_KEY = 'cnh-marina-manager-data-v5';
   const AUTH_KEY = 'cnh-marina-manager-auth-v5';
-  const DEFAULT_PASSWORD = 'CNH2026';
+  const READONLY_PASSWORD = 'CNH2026';
+  const ADMIN_PASSWORD = 'CNHardelot';
   const SYNC_ENDPOINT = '/.netlify/functions/data';
   const PLAN_IMAGE = 'plan-reference.png';
   const PLACEHOLDER_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
@@ -200,12 +201,12 @@
     window.setTimeout(() => node.remove(), 3200);
   }
 
-  function showApp() {
+  function showApp(user = null) {
     els.authView?.classList.add('hidden');
     els.appView?.classList.remove('hidden');
     document.body.classList.add('plan-only-mode');
-    localStorage.setItem(AUTH_KEY, JSON.stringify({ logged: true, at: Date.now() }));
-    state.currentUser = state.currentUser || { name: 'CNH', role: 'admin' };
+    state.currentUser = user || state.currentUser || { name: 'Consultation CNH', role: 'lecture' };
+    localStorage.setItem(AUTH_KEY, JSON.stringify({ logged: true, at: Date.now(), user: state.currentUser }));
     applyRoleVisibility();
     renderAll();
     requestAnimationFrame(() => ensureAerialPlanVisible());
@@ -231,11 +232,24 @@
   function handleLogin(event) {
     event.preventDefault();
     const password = els.loginPassword?.value || '';
-    if (password && password !== DEFAULT_PASSWORD) {
-      toast('Mot de passe incorrect. Mot de passe par défaut : CNH2026', 'error');
+
+    if (password === READONLY_PASSWORD) {
+      showApp({ name: 'Consultation CNH', role: 'lecture' });
+      if (els.loginPassword) els.loginPassword.value = '';
       return;
     }
-    showApp();
+
+    if (password === ADMIN_PASSWORD) {
+      showApp({ name: 'Administration CNH', role: 'admin' });
+      if (els.loginPassword) els.loginPassword.value = '';
+      return;
+    }
+
+    if (els.loginPassword) {
+      els.loginPassword.value = '';
+      els.loginPassword.focus();
+    }
+    toast('Mot de passe incorrect.', 'error');
   }
 
   function logout() {
@@ -244,16 +258,20 @@
 
   function applyRoleVisibility() {
     const manage = canManage();
+    const isAdmin = state.currentUser?.role === 'admin';
+
     document.querySelectorAll('.manage-only').forEach((el) => el.classList.toggle('hidden-by-role', !manage));
-    document.querySelectorAll('.admin-only').forEach((el) => el.classList.toggle('hidden-by-role', false));
+    document.querySelectorAll('.admin-only').forEach((el) => el.classList.toggle('hidden-by-role', !isAdmin));
+
     if (els.userDisplayName) els.userDisplayName.textContent = state.currentUser?.name || 'CNH';
-    if (els.userDisplayRole) els.userDisplayRole.textContent = 'Administrateur local';
+    if (els.userDisplayRole) els.userDisplayRole.textContent = isAdmin ? 'Administration + modifications' : 'Consultation uniquement';
     updateSyncPill();
-    if (els.modeBadge) els.modeBadge.textContent = 'Mode local compatible Live Server et Netlify.';
-    if (els.accountCardName) els.accountCardName.textContent = 'CNH';
-    if (els.accountCardEmail) els.accountCardEmail.textContent = 'Compte local';
-    if (els.accountRoleChip) els.accountRoleChip.textContent = 'Admin';
-    if (els.accountPasswordChip) els.accountPasswordChip.textContent = 'Local';
+
+    if (els.modeBadge) els.modeBadge.textContent = '';
+    if (els.accountCardName) els.accountCardName.textContent = state.currentUser?.name || 'CNH';
+    if (els.accountCardEmail) els.accountCardEmail.textContent = isAdmin ? 'Accès administrateur' : 'Accès consultation';
+    if (els.accountRoleChip) els.accountRoleChip.textContent = isAdmin ? 'Admin' : 'Lecture seule';
+    if (els.accountPasswordChip) els.accountPasswordChip.textContent = isAdmin ? 'Modifications autorisées' : 'Consultation';
   }
 
   function renderAll() {
@@ -893,8 +911,15 @@
     bindEvents();
     applyRoleVisibility();
     renderAll();
-    if (localStorage.getItem(AUTH_KEY)) showApp();
-    else showAuth();
+    const savedAuth = localStorage.getItem(AUTH_KEY);
+    if (savedAuth) {
+      try {
+        const parsed = JSON.parse(savedAuth);
+        showApp(parsed.user || { name: 'Consultation CNH', role: 'lecture' });
+      } catch (_) {
+        showApp({ name: 'Consultation CNH', role: 'lecture' });
+      }
+    } else showAuth();
     registerServiceWorker();
   }
 
