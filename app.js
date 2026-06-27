@@ -62,12 +62,12 @@
       'sitePlanSection', 'sitePlanMap', 'zonesBoard', 'zoneFocusBar', 'zoneFocusTitle', 'zoneFocusMeta', 'zoneFocusAllBtn', 'zoneFocusGridBtn',
       'planMapViewBtn', 'planGridViewBtn', 'openPlanFullscreenBtn', 'planFullscreen', 'planFullscreenBody', 'closePlanFullscreenBtn',
       'statTotalSpots', 'statOccupied', 'statFree', 'statComplete', 'sidebarZoneStats', 'toastContainer',
-      'refreshButton', 'exportButton', 'excelExportButton', 'importInput', 'openCreateBoatButton', 'floatingAddButton', 'mobileExcelButton', 'boatGrid', 'searchInput', 'zoneFilter', 'statusFilter',
+      'refreshButton', 'exportButton', 'excelExportButton', 'googleSheetsExportButton', 'importInput', 'openCreateBoatButton', 'floatingAddButton', 'mobileExcelButton', 'boatGrid', 'searchInput', 'zoneFilter', 'statusFilter',
       'boatModal', 'boatForm', 'boatId', 'boatPhotoData', 'boatPhotoPreview', 'boatPhotoInput', 'removeBoatPhotoButton', 'boatModalTitle',
       'boatName', 'licenceNumber', 'registrationNumber', 'boatType', 'boatStatus', 'ownerName', 'ownerPhone', 'ownerEmail', 'emergencyContact',
       'zoneSelect', 'slotSelect', 'lengthInput', 'widthInput', 'equipmentInput', 'notesInput', 'duplicateBoatButton', 'deleteBoatButton',
       'passwordModal', 'passwordForm', 'readonlyPasswordInput', 'managerPasswordInput', 'adminPasswordInput', 'openPasswordModalButton', 'accountCardName', 'accountCardEmail', 'accountRoleChip', 'accountPasswordChip',
-      'workspaceTitle', 'workspaceSubtitle', 'fsMenuBtn', 'mobileActionMenu', 'fsRefreshBtn', 'fsExcelBtn', 'fsExportBtn', 'fsImportBtn', 'fsImportInput', 'fsNewBoatBtn', 'fsFleetBtn', 'fsPasswordsBtn', 'fsAdminBtn', 'fsLogoutBtn', 'sidebar', 'sidebarBackdrop', 'sidebarToggle', 'sidebarClose', 'cardModeButton', 'compactModeButton',
+      'workspaceTitle', 'workspaceSubtitle', 'fsMenuBtn', 'mobileActionMenu', 'fsRefreshBtn', 'fsExcelBtn', 'fsGoogleSheetsBtn', 'fsExportBtn', 'fsImportBtn', 'fsImportInput', 'fsNewBoatBtn', 'fsFleetBtn', 'fsPasswordsBtn', 'fsAdminBtn', 'fsLogoutBtn', 'sidebar', 'sidebarBackdrop', 'sidebarToggle', 'sidebarClose', 'cardModeButton', 'compactModeButton',
       'profilesNotice', 'profilesList'
     ].forEach((id) => { els[id] = $(id); });
   }
@@ -739,6 +739,62 @@
     return `<Cell ss:StyleID="${styleId}"><Data ss:Type="String">${excelEscape(value)}</Data></Cell>`;
   }
 
+  function getExportRows() {
+    return allSlots().map((slot) => {
+      const boat = boatForSlot(slot);
+      const zone = findZoneBySlot(slot);
+      return {
+        emplacement: slot,
+        zone: zone?.name || '',
+        statut_place: boat ? 'Occupé' : 'Libre',
+        nom_bateau: boat?.name || '',
+        proprietaire: boat?.ownerName || '',
+        telephone: boat?.ownerPhone || '',
+        email: boat?.ownerEmail || '',
+        licence: boat?.licenceNumber || '',
+        immatriculation: boat?.registrationNumber || '',
+        type: boat?.boatType || '',
+        statut_bateau: boat?.status || '',
+        longueur: boat?.length || '',
+        largeur: boat?.width || '',
+        contact_urgence: boat?.emergencyContact || '',
+        equipements: boat?.equipment || '',
+        notes: boat?.notes || '',
+        mise_a_jour: boat?.updatedAt ? new Date(boat.updatedAt).toLocaleString('fr-FR') : ''
+      };
+    });
+  }
+
+  function csvEscape(value) {
+    const text = String(value ?? '').replace(/\r?\n|\r/g, ' ').trim();
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  function exportGoogleSheets() {
+    const headers = [
+      'Emplacement', 'Zone', 'Statut place', 'Nom bateau', 'Propriétaire', 'Téléphone', 'Email',
+      'Licence', 'Immatriculation', 'Type', 'Statut bateau', 'Longueur', 'Largeur',
+      'Contact urgence', 'Équipements', 'Notes', 'Mise à jour'
+    ];
+    const keys = ['emplacement','zone','statut_place','nom_bateau','proprietaire','telephone','email','licence','immatriculation','type','statut_bateau','longueur','largeur','contact_urgence','equipements','notes','mise_a_jour'];
+    const rows = getExportRows();
+    // CSV UTF-8 avec séparateur virgule : import direct dans Google Sheets.
+    const csv = [
+      headers.map(csvEscape).join(','),
+      ...rows.map((row) => keys.map((key) => csvEscape(row[key])).join(','))
+    ].join('\n');
+    const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cnh-google-sheets-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast('Fichier CSV compatible Google Sheets généré.', 'success');
+  }
+
   function exportExcel() {
     const generatedAt = new Date().toLocaleString('fr-FR');
     const headers = [
@@ -988,7 +1044,7 @@
     const target = event.target;
     if (!target || !document.body.classList.contains('plan-fullscreen-open')) return;
 
-    const actionEl = target.closest?.('#fsMenuBtn, #fsRefreshBtn, #fsExcelBtn, #fsExportBtn, #fsImportBtn, #fsNewBoatBtn, #fsFleetBtn, #fsPasswordsBtn, #fsAdminBtn, #fsLogoutBtn');
+    const actionEl = target.closest?.('#fsMenuBtn, #fsRefreshBtn, #fsExcelBtn, #fsGoogleSheetsBtn, #fsExportBtn, #fsImportBtn, #fsNewBoatBtn, #fsFleetBtn, #fsPasswordsBtn, #fsAdminBtn, #fsLogoutBtn');
     if (!actionEl) return;
 
     event.preventDefault();
@@ -1004,6 +1060,10 @@
         break;
       case 'fsExcelBtn':
         exportExcel();
+        closeMobileActionMenu();
+        break;
+      case 'fsGoogleSheetsBtn':
+        exportGoogleSheets();
         closeMobileActionMenu();
         break;
       case 'fsExportBtn':
@@ -1060,7 +1120,9 @@
     els.fsExcelBtn?.addEventListener('click', exportExcel);
     els.exportButton?.addEventListener('click', exportJson);
     els.excelExportButton?.addEventListener('click', exportExcel);
+    els.googleSheetsExportButton?.addEventListener('click', exportGoogleSheets);
     els.mobileExcelButton?.addEventListener('click', exportExcel);
+    els.fsGoogleSheetsBtn?.addEventListener('click', exportGoogleSheets);
     els.fsExportBtn?.addEventListener('click', exportJson);
     els.importInput?.addEventListener('change', importJson);
     els.fsImportInput?.addEventListener('change', importJson);
