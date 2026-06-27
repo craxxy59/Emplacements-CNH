@@ -1,2 +1,7 @@
+[build]
+  publish = "."
+  command = "echo 'No build needed for static CNH app'"
+
 [functions]
   directory = "netlify/functions"
+  node_bundler = "esbuild"
