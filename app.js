@@ -1,2056 +1,747 @@
-const ZONES = [
-  { id: 'A', name: 'Zone A', count: 18, description: 'Rangée du bas — emplacements 1 à 18' },
-  { id: 'B', name: 'Zone B', count: 18, description: 'Rangée centrale — emplacements 19 à 36' },
-  { id: 'C', name: 'Zone C', count: 10, description: 'Rangée du haut — emplacements 37 à 46' },
-];
+(() => {
+  'use strict';
 
-/**
- * Calage auto sur les rectangles noirs de plan emplacements.png (1549×605)
- * haut = 10 (C), milieu = 18 (B), bas = 18 (A)
- */
-const ZONE_GEOMETRY = {
-  C: { left: '10.85%', top: '0.17%', width: '55.65%', height: '25.95%' },
-  B: { left: '0.19%', top: '46.78%', width: '99.03%', height: '23.95%' },
-  A: { left: '0.19%', top: '71.9%', width: '99.03%', height: '25.05%' },
-};
+  const STORAGE_KEY = 'cnh-marina-manager-data-v5';
+  const AUTH_KEY = 'cnh-marina-manager-auth-v5';
+  const DEFAULT_PASSWORD = 'CNH2026';
+  const PLAN_IMAGE = 'plan-reference.png';
+  const PLACEHOLDER_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="400" height="260" viewBox="0 0 400 260">
+      <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#dfeaf3"/><stop offset="1" stop-color="#f8fbfd"/></linearGradient></defs>
+      <rect width="400" height="260" rx="24" fill="url(#g)"/>
+      <path d="M65 156h270l-32 34H100z" fill="#0d5f8f" opacity=".82"/>
+      <path d="M178 64h22v92h-22z" fill="#0d2740" opacity=".8"/>
+      <path d="M204 72l84 82h-84z" fill="#3ea0d0" opacity=".72"/>
+      <path d="M172 82l-72 72h72z" fill="#1f8f83" opacity=".55"/>
+      <text x="200" y="225" text-anchor="middle" font-family="Arial" font-size="20" font-weight="700" fill="#61778c">Photo bateau</text>
+    </svg>`);
 
-const PLAN_REFERENCE_IMAGE = 'assets/plan-reference.png';
+  const $ = (id) => document.getElementById(id);
 
-const TOTAL_SPOTS = ZONES.reduce((sum, zone) => sum + zone.count, 0);
-
-function getGlobalSlotNumber(zoneId, slotNumber) {
-  let offset = 0;
-  for (const zone of ZONES) {
-    if (zone.id === zoneId) {
-      return offset + Number(slotNumber);
+  const zones = [
+    {
+      id: 'haut',
+      name: 'Rangée haute',
+      short: 'Haut',
+      slots: Array.from({ length: 10 }, (_, i) => i + 1),
+      rect: { left: 10.85, top: 0.2, width: 55.65, height: 25.8 }
+    },
+    {
+      id: 'milieu',
+      name: 'Rangée milieu',
+      short: 'Milieu',
+      slots: Array.from({ length: 18 }, (_, i) => i + 11),
+      rect: { left: 0.2, top: 46.8, width: 99.0, height: 24.0 }
+    },
+    {
+      id: 'bas',
+      name: 'Rangée basse',
+      short: 'Bas',
+      slots: Array.from({ length: 18 }, (_, i) => i + 29),
+      rect: { left: 0.45, top: 72.2, width: 98.7, height: 24.7 }
     }
-    offset += zone.count;
-  }
-  return Number(slotNumber);
-}
+  ];
 
-function getZoneSlotFromGlobal(globalNumber) {
-  const n = Number(globalNumber);
-  if (!Number.isFinite(n) || n < 1 || n > TOTAL_SPOTS) return null;
-  let offset = 0;
-  for (const zone of ZONES) {
-    if (n <= offset + zone.count) {
-      return { zone_id: zone.id, slot_number: n - offset };
-    }
-    offset += zone.count;
-  }
-  return null;
-}
-
-function formatEmplacement(zoneId, slotNumber) {
-  return `Emplacement ${getGlobalSlotNumber(zoneId, slotNumber)}`;
-}
-
-const STATUS_LABELS = {
-  actif: 'Actif',
-  hivernage: 'Hivernage',
-  maintenance: 'Maintenance',
-  archive: 'Archivé',
-};
-
-const ROLE_LABELS = {
-  admin: 'Administrateur',
-  manager: 'Gestion',
-  viewer: 'Lecture seule',
-};
-
-const STORAGE_KEYS = {
-  DEMO_ACCOUNTS: 'cnh-demo-accounts-v3',
-  DEMO_SESSION: 'cnh-demo-session-v3',
-  DEMO_BOATS: 'cnh-demo-boats-v3',
-  SUPABASE_SESSION: 'cnh-supabase-session-v1',
-  UI_PREFS: 'cnh-ui-prefs-v1',
-};
-
-const CONFIG = window.CNH_CONFIG || {};
-const MOBILE_BREAKPOINT = 760;
-const PLAN_IMAGE_WIDTH = 1549;
-const PLAN_IMAGE_HEIGHT = 605;
-const PLAN_FULLSCREEN_FILL = 0.96;
-const PLAN_FULLSCREEN_PAN_PAD = 24;
-const DEFAULT_PHOTO = 'assets/placeholder-boat.svg';
-
-let planMapResizeObserver = null;
-
-
-const state = {
-  mode: 'shared', // Mode partagé pour tous
-  boats: [],
-  profiles: [],
-  session: null,
-  currentProfile: null,
-  selectedSlot: { zone_id: 'A', slot_number: 1 },
-  selectedBoatId: null,
-  activeTab: 'dashboardTab',
-  forcePasswordChange: false,
-  filters: {
-    search: '',
-    zone: 'all',
-    status: 'all',
-  },
-  ui: loadUiPrefs(),
-  planView: 'map',
-  focusZone: null,
-  swipe: {
-    activeId: null,
-    startX: 0,
-    startY: 0,
-    deltaX: 0,
-    moved: false,
-  },
-};
-
-const APP_PASSWORD = 'CNHardelot';
-const STORAGE_KEY_TOKEN = 'cnh-app-token';
-
-function isAuthenticated() { return !!localStorage.getItem(STORAGE_KEY_TOKEN); }
-function setAuthenticated(flag) { if(flag) localStorage.setItem(STORAGE_KEY_TOKEN,'true'); else localStorage.removeItem(STORAGE_KEY_TOKEN); }
-
-const els = {
-  authView: document.getElementById('authView'),
-  appView: document.getElementById('appView'),
-  modeBadge: document.getElementById('modeBadge'),
-  demoHelp: document.getElementById('demoHelp'),
-  loginForm: document.getElementById('loginForm'),
-  loginEmail: document.getElementById('loginEmail'),
-  loginPassword: document.getElementById('loginPassword'),
-  logoutButton: document.getElementById('logoutButton'),
-  userDisplayName: document.getElementById('userDisplayName'),
-  userDisplayRole: document.getElementById('userDisplayRole'),
-  syncPill: document.getElementById('syncPill'),
-  workspaceTitle: document.getElementById('workspaceTitle'),
-  workspaceSubtitle: document.getElementById('workspaceSubtitle'),
-  refreshButton: document.getElementById('refreshButton'),
-  exportButton: document.getElementById('exportButton'),
-  importInput: document.getElementById('importInput'),
-  openCreateBoatButton: document.getElementById('openCreateBoatButton'),
-  floatingAddButton: document.getElementById('floatingAddButton'),
-  statTotalSpots: document.getElementById('statTotalSpots'),
-  statOccupied: document.getElementById('statOccupied'),
-  statFree: document.getElementById('statFree'),
-  statComplete: document.getElementById('statComplete'),
-  zonesBoard: document.getElementById('zonesBoard'),
-  sitePlanMap: document.getElementById('sitePlanMap'),
-  sitePlanSection: document.getElementById('sitePlanSection'),
-  zoneFocusBar: document.getElementById('zoneFocusBar'),
-  zoneFocusTitle: document.getElementById('zoneFocusTitle'),
-  zoneFocusMeta: document.getElementById('zoneFocusMeta'),
-  zoneFocusAllBtn: document.getElementById('zoneFocusAllBtn'),
-  zoneFocusGridBtn: document.getElementById('zoneFocusGridBtn'),
-  planMapViewBtn: document.getElementById('planMapViewBtn'),
-  planGridViewBtn: document.getElementById('planGridViewBtn'),
-  openPlanFullscreenBtn: document.getElementById('openPlanFullscreenBtn'),
-  closePlanFullscreenBtn: document.getElementById('closePlanFullscreenBtn'),
-  planFullscreen: document.getElementById('planFullscreen'),
-  planFullscreenBody: document.getElementById('planFullscreenBody'),
-  sitePlanAnchor: document.getElementById('sitePlanAnchor'),
-  sidebarZoneStats: document.getElementById('sidebarZoneStats'),
-  searchInput: document.getElementById('searchInput'),
-  zoneFilter: document.getElementById('zoneFilter'),
-  statusFilter: document.getElementById('statusFilter'),
-  cardModeButton: document.getElementById('cardModeButton'),
-  compactModeButton: document.getElementById('compactModeButton'),
-  boatGrid: document.getElementById('boatGrid'),
-  accountCardName: document.getElementById('accountCardName'),
-  accountCardEmail: document.getElementById('accountCardEmail'),
-  accountRoleChip: document.getElementById('accountRoleChip'),
-  accountPasswordChip: document.getElementById('accountPasswordChip'),
-  openPasswordModalButton: document.getElementById('openPasswordModalButton'),
-  profilesNotice: document.getElementById('profilesNotice'),
-  profilesList: document.getElementById('profilesList'),
-  boatModal: document.getElementById('boatModal'),
-  boatModalTitle: document.getElementById('boatModalTitle'),
-  boatForm: document.getElementById('boatForm'),
-  boatId: document.getElementById('boatId'),
-  boatPhotoData: document.getElementById('boatPhotoData'),
-  boatPhotoInput: document.getElementById('boatPhotoInput'),
-  boatPhotoPreview: document.getElementById('boatPhotoPreview'),
-  removeBoatPhotoButton: document.getElementById('removeBoatPhotoButton'),
-  boatName: document.getElementById('boatName'),
-  licenceNumber: document.getElementById('licenceNumber'),
-  registrationNumber: document.getElementById('registrationNumber'),
-  boatType: document.getElementById('boatType'),
-  boatStatus: document.getElementById('boatStatus'),
-  ownerName: document.getElementById('ownerName'),
-  ownerPhone: document.getElementById('ownerPhone'),
-  ownerEmail: document.getElementById('ownerEmail'),
-  emergencyContact: document.getElementById('emergencyContact'),
-  zoneSelect: document.getElementById('zoneSelect'),
-  slotSelect: document.getElementById('slotSelect'),
-  lengthInput: document.getElementById('lengthInput'),
-  widthInput: document.getElementById('widthInput'),
-  equipmentInput: document.getElementById('equipmentInput'),
-  notesInput: document.getElementById('notesInput'),
-  duplicateBoatButton: document.getElementById('duplicateBoatButton'),
-  deleteBoatButton: document.getElementById('deleteBoatButton'),
-  passwordModal: document.getElementById('passwordModal'),
-  passwordModalText: document.getElementById('passwordModalText'),
-  passwordForm: document.getElementById('passwordForm'),
-  newPassword: document.getElementById('newPassword'),
-  confirmPassword: document.getElementById('confirmPassword'),
-  toastContainer: document.getElementById('toastContainer'),
-  sidebar: document.getElementById('sidebar'),
-  sidebarToggle: document.getElementById('sidebarToggle'),
-  sidebarClose: document.getElementById('sidebarClose'),
-  sidebarBackdrop: document.getElementById('sidebarBackdrop'),
-};
-
-const tabMeta = {
-  dashboardTab: {
-    title: 'Plan des emplacements',
-    subtitle: 'Photo aérienne interactive — 46 places en zones A (18), B (18) et C (10).',
-  },
-  fleetTab: {
-    title: 'Registre des bateaux',
-    subtitle: 'Recherche, filtres et mode compact mobile avec actions rapides par swipe.',
-  },
-  adminTab: {
-    title: 'Administration',
-    subtitle: 'Sécurité, rôles et synchronisation en ligne Supabase.',
-  },
-};
-
-
-function loadUiPrefs() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.UI_PREFS) || '{}');
-    if (parsed.viewMode) {
-      return { viewMode: parsed.viewMode };
-    }
-  } catch {
-    // ignore
-  }
-  return { viewMode: window.innerWidth <= MOBILE_BREAKPOINT ? 'compact' : 'cards' };
-}
-
-function saveUiPrefs() {
-  localStorage.setItem(STORAGE_KEYS.UI_PREFS, JSON.stringify(state.ui));
-}
-
-function getZone(zoneId) {
-  return ZONES.find((zone) => zone.id === zoneId) || ZONES[0];
-}
-
-function getRole() {
-  return 'admin';
-}
-
-function canManageBoats() {
-  return true;
-}
-
-function isAdmin() {
-  return true;
-}
-
-function createId(prefix = 'id') {
-  if (window.crypto?.randomUUID) return crypto.randomUUID();
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function safeText(value) {
-  return value == null ? '' : String(value).trim();
-}
-
-function safeImage(value) {
-  const text = safeText(value);
-  return text.startsWith('data:image/') ? text : '';
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-function displayBoatName(boat) {
-  const name = safeText(boat?.boat_name);
-  if (name) return name;
-  if (boat?.zone_id && boat?.slot_number) {
-    return `Bateau non renseigné • ${formatEmplacement(boat.zone_id, boat.slot_number)}`;
-  }
-  return 'Bateau non renseigné';
-}
-
-function displayOwnerName(boat) {
-  return safeText(boat?.owner_name) || 'Propriétaire non renseigné';
-}
-
-function truncatePlanText(value, max = 10) {
-  const text = safeText(value);
-  if (!text) return '';
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
-}
-
-function planSlotTooltip(zoneId, slot, boat) {
-  const global = getGlobalSlotNumber(zoneId, slot);
-  if (!boat) return `${formatEmplacement(zoneId, slot)} (${getZone(zoneId).name}) — libre`;
-  const parts = [
-    formatEmplacement(zoneId, slot),
-    getZone(zoneId).name,
-    displayBoatName(boat),
-    displayOwnerName(boat),
-    boat.owner_phone ? `Tél. ${boat.owner_phone}` : '',
-    boat.licence_number ? `Licence ${boat.licence_number}` : '',
-    STATUS_LABELS[boat.status],
-  ].filter(Boolean);
-  return parts.join(' • ');
-}
-
-function planSlotPhotoSrc(boat) {
-  return boat?.photo_data || DEFAULT_PHOTO;
-}
-
-function renderPlanSlotMarkup(zoneId, slot, boat) {
-  const global = getGlobalSlotNumber(zoneId, slot);
-  if (!boat) {
-    return `<span class="plan-slot-num">${global}</span>`;
-  }
-  const alt = escapeHtml(displayBoatName(boat));
-  return `
-    <img class="plan-slot-photo" src="${planSlotPhotoSrc(boat)}" alt="${alt}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${DEFAULT_PHOTO}'" />
-    <span class="plan-slot-num" aria-hidden="true">${global}</span>
-  `;
-}
-
-function hasMeaningfulBoatInfo(data = {}) {
-  return Boolean(
-    safeText(data.boat_name) ||
-      safeText(data.licence_number) ||
-      safeText(data.registration_number) ||
-      safeText(data.boat_type) ||
-      safeText(data.owner_name) ||
-      safeText(data.owner_phone) ||
-      safeText(data.owner_email) ||
-      safeText(data.emergency_contact) ||
-      safeText(data.length_m) ||
-      safeText(data.width_m) ||
-      safeText(data.equipment) ||
-      safeText(data.notes) ||
-      safeImage(data.photo_data)
-  );
-}
-
-function sortBoats(a, b) {
-  const slotA = getGlobalSlotNumber(a.zone_id, a.slot_number);
-  const slotB = getGlobalSlotNumber(b.zone_id, b.slot_number);
-  if (slotA !== slotB) return slotA - slotB;
-  return a.boat_name.localeCompare(b.boat_name, 'fr');
-}
-
-function normalizeBoat(raw = {}) {
-  const zone = getZone(raw.zone_id || raw.zoneId || 'A');
-  const parsedSlot = Number(raw.slot_number ?? raw.slotNumber ?? 1);
-  return {
-    id: raw.id || createId('boat'),
-    boat_name: safeText(raw.boat_name ?? raw.boatName),
-    licence_number: safeText(raw.licence_number ?? raw.licenceNumber),
-    registration_number: safeText(raw.registration_number ?? raw.registrationNumber),
-    boat_type: safeText(raw.boat_type ?? raw.boatType),
-    status: STATUS_LABELS[raw.status] ? raw.status : 'actif',
-    owner_name: safeText(raw.owner_name ?? raw.ownerName),
-    owner_phone: safeText(raw.owner_phone ?? raw.ownerPhone),
-    owner_email: safeText(raw.owner_email ?? raw.ownerEmail),
-    emergency_contact: safeText(raw.emergency_contact ?? raw.emergencyContact),
-    zone_id: zone.id,
-    slot_number:
-      Number.isFinite(parsedSlot) && parsedSlot >= 1 && parsedSlot <= zone.count ? parsedSlot : 1,
-    length_m: safeText(raw.length_m ?? raw.length),
-    width_m: safeText(raw.width_m ?? raw.width),
-    equipment: safeText(raw.equipment),
-    notes: safeText(raw.notes),
-    photo_data: safeImage(raw.photo_data ?? raw.photoData),
-    created_at: raw.created_at || raw.createdAt || new Date().toISOString(),
-    updated_at: raw.updated_at || raw.updatedAt || new Date().toISOString(),
+  const state = {
+    boats: [],
+    profiles: [],
+    selectedSlot: null,
+    currentUser: null,
+    planView: 'map',
+    editingId: null,
+    remoteMode: false
   };
-}
 
-function normalizeProfile(raw = {}) {
-  return {
-    id: raw.id || createId('profile'),
-    email: safeText(raw.email),
-    full_name: safeText(raw.full_name || raw.fullName || raw.email || 'Utilisateur'),
-    role: ROLE_LABELS[raw.role] ? raw.role : 'viewer',
-    must_change_password: Boolean(raw.must_change_password),
-    created_at: raw.created_at || new Date().toISOString(),
-    updated_at: raw.updated_at || new Date().toISOString(),
-  };
-}
+  const els = {};
 
-function makeFallbackProfile(user = {}) {
-  return normalizeProfile({
-    id: user.id || createId('profile'),
-    email: safeText(user.email),
-    full_name: safeText(user.user_metadata?.full_name || user.email || 'Utilisateur'),
-    role: 'viewer',
-    must_change_password: false,
-  });
-}
+  function cacheElements() {
+    [
+      'authView', 'appView', 'loginForm', 'loginPassword', 'modeBadge', 'logoutButton', 'userDisplayName', 'userDisplayRole', 'syncPill',
+      'sitePlanSection', 'sitePlanMap', 'zonesBoard', 'zoneFocusBar', 'zoneFocusTitle', 'zoneFocusMeta', 'zoneFocusAllBtn', 'zoneFocusGridBtn',
+      'planMapViewBtn', 'planGridViewBtn', 'openPlanFullscreenBtn', 'planFullscreen', 'planFullscreenBody', 'closePlanFullscreenBtn',
+      'statTotalSpots', 'statOccupied', 'statFree', 'statComplete', 'sidebarZoneStats', 'toastContainer',
+      'refreshButton', 'exportButton', 'importInput', 'openCreateBoatButton', 'floatingAddButton', 'boatGrid', 'searchInput', 'zoneFilter', 'statusFilter',
+      'boatModal', 'boatForm', 'boatId', 'boatPhotoData', 'boatPhotoPreview', 'boatPhotoInput', 'removeBoatPhotoButton', 'boatModalTitle',
+      'boatName', 'licenceNumber', 'registrationNumber', 'boatType', 'boatStatus', 'ownerName', 'ownerPhone', 'ownerEmail', 'emergencyContact',
+      'zoneSelect', 'slotSelect', 'lengthInput', 'widthInput', 'equipmentInput', 'notesInput', 'duplicateBoatButton', 'deleteBoatButton',
+      'passwordModal', 'passwordForm', 'newPassword', 'confirmPassword', 'openPasswordModalButton', 'accountCardName', 'accountCardEmail', 'accountRoleChip', 'accountPasswordChip',
+      'workspaceTitle', 'workspaceSubtitle', 'sidebar', 'sidebarBackdrop', 'sidebarToggle', 'sidebarClose', 'cardModeButton', 'compactModeButton',
+      'profilesNotice', 'profilesList'
+    ].forEach((id) => { els[id] = $(id); });
+  }
 
-const demoApi = {
-  ensureSeed() {
-    const accountsRaw = localStorage.getItem(STORAGE_KEYS.DEMO_ACCOUNTS);
-    if (!accountsRaw) {
-      const accounts = [
-        normalizeProfile({ id: 'demo-admin', email: 'admin@cnh.local', full_name: 'Admin CNH', role: 'admin', must_change_password: true }),
-        normalizeProfile({ id: 'demo-manager', email: 'equipe@cnh.local', full_name: 'Équipe CNH', role: 'manager' }),
-        normalizeProfile({ id: 'demo-viewer', email: 'lecture@cnh.local', full_name: 'Consultation CNH', role: 'viewer' }),
-      ].map((profile) => ({
-        ...profile,
-        password: profile.role === 'admin' ? 'Admin1234!' : profile.role === 'manager' ? 'Staff1234!' : 'View1234!',
-      }));
-      localStorage.setItem(STORAGE_KEYS.DEMO_ACCOUNTS, JSON.stringify(accounts));
-    }
+  const allSlots = () => zones.flatMap((z) => z.slots);
+  const findZoneBySlot = (slot) => zones.find((z) => z.slots.includes(Number(slot)));
+  const boatForSlot = (slot) => state.boats.find((boat) => Number(boat.slot) === Number(slot) && boat.status !== 'archive');
+  const canManage = () => !state.currentUser || state.currentUser.role !== 'lecture';
+  const safeText = (value) => String(value ?? '').trim();
+  const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `boat-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
-    const boatsRaw = localStorage.getItem(STORAGE_KEYS.DEMO_BOATS);
-    if (!boatsRaw) {
-      const boats = [
-        normalizeBoat({
-          id: 'demo-boat-1',
-          boat_name: 'Alizé',
-          licence_number: 'CNH-2026-001',
-          registration_number: 'DK123456',
-          boat_type: 'Catamaran',
-          status: 'actif',
-          owner_name: 'Marc Lefebvre',
-          owner_phone: '06 11 22 33 44',
-          owner_email: 'marc.lefebvre@email.fr',
-          zone_id: 'A',
-          slot_number: 3,
-          length_m: '5.4',
-          width_m: '2.4',
-          equipment: 'Bâche bleue, remorque club',
-          notes: 'Présence régulière les week-ends.',
-        }),
-        normalizeBoat({
-          id: 'demo-boat-2',
-          boat_name: 'Goéland',
-          licence_number: 'CNH-2026-014',
-          registration_number: 'BD998877',
-          boat_type: 'Dériveur',
-          status: 'maintenance',
-          owner_name: 'Claire Duhamel',
-          owner_phone: '06 98 76 54 32',
-          owner_email: 'claire.duhamel@email.fr',
-          zone_id: 'B',
-          slot_number: 8,
-          length_m: '4.7',
-          width_m: '1.8',
-          equipment: 'Taud neuf, mise à l’eau facile',
-          notes: 'Révision safran prévue en juin.',
-        }),
-        normalizeBoat({
-          id: 'demo-boat-3',
-          boat_name: 'Mistral',
-          licence_number: 'CNH-2026-021',
-          boat_type: 'Semi-rigide',
-          status: 'hivernage',
-          owner_name: 'Jean Martin',
-          owner_phone: '07 44 55 66 77',
-          zone_id: 'C',
-          slot_number: 2,
-          length_m: '5.9',
-          width_m: '2.3',
-          equipment: 'Moteur protégé, bâche noire',
-        }),
-      ].sort(sortBoats);
-      localStorage.setItem(STORAGE_KEYS.DEMO_BOATS, JSON.stringify(boats));
-    }
-  },
-
-  getAccounts() {
-    this.ensureSeed();
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.DEMO_ACCOUNTS) || '[]');
-  },
-
-  setAccounts(accounts) {
-    localStorage.setItem(STORAGE_KEYS.DEMO_ACCOUNTS, JSON.stringify(accounts));
-  },
-
-  getBoats() {
-    this.ensureSeed();
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.DEMO_BOATS) || '[]').map(normalizeBoat).sort(sortBoats);
-  },
-
-  setBoats(boats) {
-    localStorage.setItem(STORAGE_KEYS.DEMO_BOATS, JSON.stringify(boats.map(normalizeBoat).sort(sortBoats)));
-  },
-
-  async signIn(email, password) {
-    const account = this.getAccounts().find(
-      (item) => item.email.toLowerCase() === safeText(email).toLowerCase() && item.password === password,
-    );
-    if (!account) throw new Error('Email ou mot de passe invalide.');
-
-    localStorage.setItem(
-      STORAGE_KEYS.DEMO_SESSION,
-      JSON.stringify({ profileId: account.id, signedAt: new Date().toISOString() }),
-    );
-
-    return {
-      session: { access_token: 'demo-token', user: { id: account.id, email: account.email } },
-      profile: normalizeProfile(account),
-    };
-  },
-
-  async restoreSession() {
-    this.ensureSeed();
-    const raw = localStorage.getItem(STORAGE_KEYS.DEMO_SESSION);
-    if (!raw) return null;
-    const sessionData = JSON.parse(raw);
-    const account = this.getAccounts().find((item) => item.id === sessionData.profileId);
-    if (!account) return null;
-    return {
-      session: { access_token: 'demo-token', user: { id: account.id, email: account.email } },
-      profile: normalizeProfile(account),
-    };
-  },
-
-  async signOut() {
-    localStorage.removeItem(STORAGE_KEYS.DEMO_SESSION);
-  },
-
-  async changePassword(newPassword) {
-    const raw = localStorage.getItem(STORAGE_KEYS.DEMO_SESSION);
-    if (!raw) throw new Error('Session introuvable.');
-    const sessionData = JSON.parse(raw);
-    const accounts = this.getAccounts().map((item) =>
-      item.id === sessionData.profileId
-        ? { ...item, password: newPassword, must_change_password: false, updated_at: new Date().toISOString() }
-        : item,
-    );
-    this.setAccounts(accounts);
-    return normalizeProfile(accounts.find((item) => item.id === sessionData.profileId));
-  },
-
-  async fetchBoats() {
-    return this.getBoats();
-  },
-
-  async upsertBoat(boat) {
-    const boats = this.getBoats();
-    const index = boats.findIndex((item) => item.id === boat.id);
-    const payload = normalizeBoat(boat);
-    if (index >= 0) boats[index] = payload;
-    else boats.push(payload);
-    this.setBoats(boats);
-    return payload;
-  },
-
-  async deleteBoat(boatId) {
-    this.setBoats(this.getBoats().filter((boat) => boat.id !== boatId));
-  },
-
-  async fetchProfiles() {
-    return this.getAccounts().map(normalizeProfile);
-  },
-
-  async updateProfile(profileId, patch) {
-    const accounts = this.getAccounts().map((item) =>
-      item.id === profileId ? { ...item, ...patch, updated_at: new Date().toISOString() } : item,
-    );
-    this.setAccounts(accounts);
-    return normalizeProfile(accounts.find((item) => item.id === profileId));
-  },
-};
-
-const appwriteApi = {
-  async signIn(email, password) {
+  async function loadData() {
+    let loaded = null;
     try {
-      const session = await account.createEmailSession(email, password);
-      // Appwrite doesn't have a "profiles" table by default, we use our collection
-      let profile;
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) loaded = JSON.parse(stored);
+    } catch (_) {}
+
+    if (!loaded) {
       try {
-        const response = await databases.listDocuments(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, [
-          Appwrite.Query.equal('email', email)
-        ]);
-        profile = normalizeProfile(response.documents[0] || { email, role: 'viewer' });
-      } catch (e) {
-        profile = normalizeProfile({ email, role: 'viewer' });
+        const res = await fetch('data.json', { cache: 'no-store' });
+        if (res.ok) loaded = await res.json();
+      } catch (_) {
+        // Live Server ou fichier local : on démarre simplement avec une base vide.
       }
-      return { session, profile };
-    } catch (e) {
-      throw new Error('Email ou mot de passe invalide.');
     }
-  },
 
-  async restoreSession() {
+    state.boats = Array.isArray(loaded?.boats) ? loaded.boats : [];
+    state.profiles = Array.isArray(loaded?.profiles) ? loaded.profiles : [];
+    saveData(false);
+  }
+
+  function saveData(showToast = false) {
     try {
-      const user = await account.get();
-      let profile;
-      try {
-        const response = await databases.listDocuments(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, [
-          Appwrite.Query.equal('email', user.email)
-        ]);
-        profile = normalizeProfile(response.documents[0] || { email: user.email, role: 'viewer' });
-      } catch (e) {
-        profile = normalizeProfile({ email: user.email, role: 'viewer' });
-      }
-      return { session: { user }, profile };
-    } catch (e) {
-      return null;
-    }
-  },
-
-  async signOut() {
-    await account.deleteSession('current');
-  },
-
-  async changePassword(newPassword) {
-    await account.updatePassword(newPassword);
-    return { role: 'viewer' }; // Simplified
-  },
-
-  async fetchBoats() {
-    const response = await databases.listDocuments(
-      CONFIG.appwriteDatabaseId,
-      CONFIG.appwriteCollectionId
-    );
-    return response.documents.map(doc => ({
-      id: doc.$id,
-      ...doc
-    })).map(normalizeBoat).sort(sortBoats);
-  },
-
-  async upsertBoat(boat) {
-    const payload = normalizeBoat(boat);
-    const id = boat.id || Appwrite.ID.unique();
-    
-    // Compatibility layer: Appwrite sometimes expects dashes instead of underscores
-    const appwritePayload = { ...payload };
-    if (payload.zone_id) appwritePayload['zone-id'] = payload.zone_id;
-    if (payload.slot_number) appwritePayload['slot-number'] = payload.slot_number;
-    
-    try {
-      // Try to update
-      await databases.updateDocument(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, id, appwritePayload);
-    } catch (e) {
-      // If not found, create
-      await databases.createDocument(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, id, appwritePayload);
-    }
-    return { id, ...payload };
-  },
-
-  async deleteBoat(boatId) {
-    await databases.deleteDocument(CONFIG.appwriteDatabaseId, CONFIG.appwriteCollectionId, boatId);
-  },
-
-  async fetchProfiles() {
-    const response = await databases.listDocuments(
-      CONFIG.appwriteDatabaseId,
-      'profiles_col' // Using the ID from our setup script
-    );
-    return response.documents.map(doc => normalizeProfile({ id: doc.$id, ...doc }));
-  },
-
-  async updateProfile(profileId, patch) {
-    const updated = await databases.updateDocument(
-      CONFIG.appwriteDatabaseId,
-      'profiles_col',
-      profileId,
-      { ...patch, updated_at: new Date().toISOString() }
-    );
-    return normalizeProfile(updated);
-  },
-};
-
-// Proxy API for Netlify Functions
-const proxyApi = {
-  async signIn(email, password) {
-    const response = await fetch('/api/signIn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    if (!response.ok) throw new Error('Email ou mot de passe invalide.');
-    return response.json();
-  },
-
-  async restoreSession() {
-    const response = await fetch('/api/restoreSession', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    if (!response.ok) return null;
-    return response.json();
-  },
-
-  async signOut() {
-    await fetch('/api/signOut', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-  },
-
-  async changePassword(newPassword) {
-    const response = await fetch('/api/changePassword', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ newPassword })
-    });
-    if (!response.ok) throw new Error('Impossible de changer le mot de passe.');
-    return response.json();
-  },
-
-  async fetchBoats() {
-    const response = await fetch('/api/fetchBoats', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    if (!response.ok) throw new Error('Impossible de récupérer les bateaux.');
-    const data = await response.json();
-    return Array.isArray(data) ? data : (data.boats || []);
-  },
-
-  async upsertBoat(boat) {
-    const response = await fetch('/api/upsertBoat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ boat })
-    });
-    if (!response.ok) throw new Error('Erreur lors de l\'enregistrement du bateau.');
-    const data = await response.json();
-    return data.boat || data;
-  },
-
-  async deleteBoat(boatId) {
-    const response = await fetch(`/api/deleteBoat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ boatId })
-    });
-    if (!response.ok) throw new Error('Erreur lors de la suppression du bateau.');
-    return response.json();
-  },
-
-  async fetchProfiles() {
-    const response = await fetch('/api/fetchProfiles', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    if (!response.ok) throw new Error('Impossible de récupérer les profils.');
-    const data = await response.json();
-    return Array.isArray(data) ? data : (data.profiles || []);
-  },
-
-  async updateProfile(profileId, patch) {
-    const response = await fetch(`/api/updateProfile`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profileId, ...patch })
-    });
-    if (!response.ok) throw new Error('Impossible de mettre à jour le profil.');
-    return response.json();
-  }
-};
-const api = proxyApi;
-
-
-
-function populateZones() {
-  els.zoneFilter.innerHTML = ['<option value="all">Toutes les zones</option>']
-    .concat(ZONES.map((zone) => `<option value="${zone.id}">${zone.name}</option>`))
-    .join('');
-  els.zoneSelect.innerHTML = ZONES.map(
-    (zone) => `<option value="${zone.id}">${zone.name} (${zone.count} places)</option>`,
-  ).join('');
-  updateSlotSelect(state.selectedSlot.zone_id, state.selectedSlot.slot_number);
-}
-
-function updateSlotSelect(zoneId, selectedSlotNumber = 1) {
-  const zone = getZone(zoneId);
-  els.slotSelect.innerHTML = Array.from({ length: zone.count }, (_, index) => {
-    const slot = index + 1;
-    return `<option value="${slot}">${formatEmplacement(zoneId, slot)}</option>`;
-  }).join('');
-  els.slotSelect.value = String(selectedSlotNumber);
-}
-
-function bindEvents() {
-  populateZones();
-  updateModeBadge();
-  updateViewModeButtons();
-  bindSidebar();
-
-  els.loginForm.addEventListener('submit', handleLogin);
-  els.logoutButton.addEventListener('click', handleLogout);
-  els.refreshButton.addEventListener('click', async () => reloadData(true));
-  els.exportButton.addEventListener('click', exportData);
-  els.importInput.addEventListener('change', handleImport);
-  els.openCreateBoatButton.addEventListener('click', () => openBoatModal(null, state.selectedSlot));
-  els.floatingAddButton?.addEventListener('click', () => openBoatModal(null, state.selectedSlot));
-
-  els.searchInput.addEventListener('input', (event) => {
-    state.filters.search = event.target.value.trim().toLowerCase();
-    renderBoatGrid();
-  });
-  els.zoneFilter.addEventListener('change', (event) => {
-    state.filters.zone = event.target.value;
-    renderBoatGrid();
-  });
-  els.statusFilter.addEventListener('change', (event) => {
-    state.filters.status = event.target.value;
-    renderBoatGrid();
-  });
-
-  els.cardModeButton.addEventListener('click', () => setViewMode('cards'));
-  els.compactModeButton.addEventListener('click', () => setViewMode('compact'));
-
-  document.querySelectorAll('.nav-button, .bottom-nav-button').forEach((button) => {
-    button.addEventListener('click', () => switchTab(button.dataset.tabTarget));
-  });
-
-  els.zonesBoard.addEventListener('click', (event) => {
-    const slotButton = event.target.closest('.slot-card');
-    if (!slotButton) return;
-    selectSlot(slotButton.dataset.zone, Number(slotButton.dataset.slot), true);
-  });
-
-  els.sitePlanMap?.addEventListener('click', (event) => {
-    const planSlot = event.target.closest('.plan-slot');
-    if (planSlot) {
-      event.stopPropagation();
-      selectSlot(planSlot.dataset.zone, Number(planSlot.dataset.slot), true);
-      return;
-    }
-    const zoneFocusBtn = event.target.closest('.zone-overlay-focus');
-    if (zoneFocusBtn && !isPlanFullscreenOpen()) {
-      setFocusZone(zoneFocusBtn.dataset.zone, false);
-    }
-  });
-
-  els.planMapViewBtn?.addEventListener('click', () => setPlanView('map'));
-  els.planGridViewBtn?.addEventListener('click', () => setPlanView('grid'));
-  els.openPlanFullscreenBtn?.addEventListener('click', openPlanFullscreen);
-  els.closePlanFullscreenBtn?.addEventListener('click', closePlanFullscreen);
-  els.zoneFocusAllBtn?.addEventListener('click', () => setFocusZone(null));
-  els.zoneFocusGridBtn?.addEventListener('click', () => {
-    setPlanView('grid');
-  });
-
-  els.sidebarZoneStats?.addEventListener('click', (event) => {
-    const item = event.target.closest('[data-sidebar-zone]');
-    if (!item) return;
-    switchTab('dashboardTab');
-    setPlanView('map');
-    setFocusZone(item.dataset.sidebarZone, false);
-  });
-
-  els.boatGrid.addEventListener('click', handleBoatGridClick);
-  els.boatGrid.addEventListener('touchstart', handleSwipeStart, { passive: true });
-  els.boatGrid.addEventListener('touchmove', handleSwipeMove, { passive: false });
-  els.boatGrid.addEventListener('touchend', handleSwipeEnd, { passive: true });
-  els.boatGrid.addEventListener('touchcancel', handleSwipeEnd, { passive: true });
-
-  els.boatForm.addEventListener('submit', saveBoatFlow);
-  els.duplicateBoatButton.addEventListener('click', duplicateBoatFlow);
-  els.deleteBoatButton.addEventListener('click', () => deleteBoatFlow(els.boatId.value));
-  els.boatPhotoInput.addEventListener('change', handlePhotoChange);
-  els.removeBoatPhotoButton.addEventListener('click', removeBoatPhoto);
-  els.zoneSelect.addEventListener('change', (event) => updateSlotSelect(event.target.value, 1));
-
-  document.addEventListener('click', (event) => {
-    const closer = event.target.closest('[data-close-modal]');
-    if (closer) closeModal(closer.dataset.closeModal);
-
-    if (!event.target.closest('.swipe-item')) {
-      closeAllSwipeRows();
-    }
-  });
-
-  // Password modal and profile management disabled in shared mode
-  if (els.openPasswordModalButton) els.openPasswordModalButton.addEventListener('click', () => openPasswordModal(false));
-  if (els.passwordForm) els.passwordForm.addEventListener('submit', handlePasswordChange);
-
-  // Profile row editing disabled in shared mode
-  if (els.profilesList) {
-    els.profilesList.addEventListener('click', async (event) => {
-      const saveButton = event.target.closest('[data-save-profile]');
-      if (!saveButton) return;
-      await updateProfileRow(saveButton.dataset.saveProfile);
-    });
-  }
-
-  window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      if (isPlanFullscreenOpen()) {
-        closePlanFullscreen();
-        return;
-      }
-      setSidebarOpen(false);
-      closeModal('passwordModal');
-      closeModal('boatModal');
-    }
-  });
-
-  window.addEventListener('resize', handleResize);
-}
-
-function handleResize() {
-  if (window.innerWidth > MOBILE_BREAKPOINT && isPlanFullscreenOpen()) {
-    closePlanFullscreen();
-  }
-  if (window.innerWidth <= MOBILE_BREAKPOINT && !state.ui.viewMode) {
-    setViewMode('compact');
-  }
-  updatePlanFullscreenButton();
-  syncPlanDisplaySize();
-}
-
-function isPlanFullscreenOpen() {
-  return document.body.classList.contains('plan-fullscreen-open');
-}
-
-function isMobileViewport() {
-  return window.innerWidth <= MOBILE_BREAKPOINT;
-}
-
-function updatePlanFullscreenButton() {
-  if (!els.openPlanFullscreenBtn) return;
-  const show =
-    isMobileViewport() &&
-    state.activeTab === 'dashboardTab' &&
-    state.planView === 'map' &&
-    !isPlanFullscreenOpen();
-  els.openPlanFullscreenBtn.classList.toggle('hidden', !show);
-}
-
-function openPlanFullscreen() {
-  if (!isMobileViewport() || !els.planFullscreenBody || !els.sitePlanSection) return;
-
-  setPlanView('map');
-  setSidebarOpen(false);
-  state.focusZone = null;
-
-  els.planFullscreenBody.appendChild(els.sitePlanSection);
-  els.zoneFocusBar?.classList.add('hidden');
-
-  els.planFullscreen?.classList.remove('hidden');
-  els.planFullscreen?.setAttribute('aria-hidden', 'false');
-  document.body.classList.add('plan-fullscreen-open');
-
-  renderSitePlan();
-  updatePlanFullscreenButton();
-  syncPlanDisplaySize();
-  els.closePlanFullscreenBtn?.focus();
-}
-
-function closePlanFullscreen() {
-  if (!els.sitePlanAnchor || !els.sitePlanSection) return;
-
-  const parent = els.sitePlanAnchor.parentNode;
-  if (parent) {
-    parent.insertBefore(els.sitePlanSection, els.sitePlanAnchor.nextSibling);
-    if (els.zoneFocusBar) {
-      parent.insertBefore(els.zoneFocusBar, els.sitePlanSection.nextSibling);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ boats: state.boats, profiles: state.profiles }, null, 2));
+      if (showToast) toast('Données enregistrées localement.', 'success');
+    } catch (error) {
+      toast('Impossible d’enregistrer localement : stockage plein ou désactivé.', 'error');
     }
   }
 
-  els.planFullscreen?.classList.add('hidden');
-  els.planFullscreen?.setAttribute('aria-hidden', 'true');
-  document.body.classList.remove('plan-fullscreen-open');
-
-  resetPlanFullscreenLayout();
-  updatePlanFullscreenButton();
-  syncPlanDisplaySize();
-}
-
-function resetPlanFullscreenLayout() {
-  const props = ['width', 'min-width', 'min-height', 'padding', 'box-sizing'];
-  props.forEach((prop) => {
-    els.sitePlanSection?.style.removeProperty(prop);
-    els.sitePlanMap?.style.removeProperty(prop);
-  });
-  els.sitePlanMap?.style.removeProperty('max-width');
-}
-
-function updateModeBadge() {
-  els.modeBadge.textContent = 'Mode connecté • Données partagées en temps réel';
-}
-
-function setSidebarOpen(open) {
-  const isOpen = Boolean(open);
-  els.sidebar?.classList.toggle('is-open', isOpen);
-  els.sidebarBackdrop?.classList.toggle('hidden', !isOpen);
-  els.sidebarToggle?.setAttribute('aria-expanded', String(isOpen));
-  document.body.classList.toggle('sidebar-open', isOpen);
-}
-
-function bindSidebar() {
-  els.sidebarToggle?.addEventListener('click', () => setSidebarOpen(true));
-  els.sidebarClose?.addEventListener('click', () => setSidebarOpen(false));
-  els.sidebarBackdrop?.addEventListener('click', () => setSidebarOpen(false));
-  bindWorkspaceHeaderScroll();
-}
-
-function bindWorkspaceHeaderScroll() {
-  const header = document.querySelector('.workspace-header');
-  if (!header) return;
-
-  const update = () => {
-    header.classList.toggle('is-scrolled', window.scrollY > 16);
-  };
-
-  window.addEventListener('scroll', update, { passive: true });
-  update();
-}
-
-function switchTab(tabId) {
-  if (isPlanFullscreenOpen()) closePlanFullscreen();
-  state.activeTab = tabId;
-  setSidebarOpen(false);
-  document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === tabId));
-  document.querySelectorAll('.nav-button, .bottom-nav-button').forEach((button) => {
-    button.classList.toggle('active', button.dataset.tabTarget === tabId);
-  });
-  els.workspaceTitle.textContent = tabMeta[tabId].title;
-  els.workspaceSubtitle.textContent = tabMeta[tabId].subtitle;
-  closeAllSwipeRows();
-  updatePlanFullscreenButton();
-}
-
-function setViewMode(mode) {
-  state.ui.viewMode = mode;
-  saveUiPrefs();
-  updateViewModeButtons();
-  renderBoatGrid();
-}
-
-function updateViewModeButtons() {
-  els.cardModeButton.classList.toggle('active', state.ui.viewMode === 'cards');
-  els.compactModeButton.classList.toggle('active', state.ui.viewMode === 'compact');
-}
-
-async function init() {
-  bindEvents();
-  registerServiceWorker();
-
-  if (isAuthenticated()) {
-    state.session = { user: { id: 'shared', email: 'shared@cnh.local' } };
-    state.currentProfile = {
-      id: 'shared',
-      email: 'shared@cnh.local',
-      full_name: 'CNH',
-      role: 'admin',
-      must_change_password: false
-    };
-    await bootstrapWorkspace();
-    showApp();
-    return;
+  function toast(message, type = '') {
+    if (!els.toastContainer) return;
+    const node = document.createElement('div');
+    node.className = `toast ${type}`.trim();
+    node.textContent = message;
+    els.toastContainer.appendChild(node);
+    window.setTimeout(() => node.remove(), 3200);
   }
 
-  showAuth();
-}
-
-async function handleLogin(event) {
-  event.preventDefault();
-  const password = els.loginPassword.value;
-  if (password === APP_PASSWORD) {
-    setAuthenticated(true);
-    state.session = { user: { id: 'shared', email: 'shared@cnh.local' } };
-    state.currentProfile = {
-      id: 'shared',
-      email: 'shared@cnh.local',
-      full_name: 'CNH',
-      role: 'admin',
-      must_change_password: false
-    };
-    await bootstrapWorkspace();
-    showApp();
-    showToast('Connexion réussie !', 'success');
-  } else {
-    showToast('Mot de passe incorrect.', 'error');
-    els.loginPassword.value = '';
-    els.loginPassword.focus();
-  }
-}
-
-async function handleLogout() {
-  setAuthenticated(false);
-  state.session = null;
-  state.currentProfile = null;
-  state.profiles = [];
-  state.boats = [];
-  state.selectedBoatId = null;
-  state.selectedSlot = { zone_id: 'A', slot_number: 1 };
-  state.forcePasswordChange = false;
-  closeModal('boatModal');
-  if (els.passwordModal) els.passwordModal.classList.add('hidden');
-  setSidebarOpen(false);
-  showAuth();
-  els.loginPassword.value = '';
-}
-
-async function bootstrapWorkspace() {
-  showApp();
-  applyRoleVisibility();
-  hydrateCurrentUserCard();
-  setPlanView('map');
-  await reloadData(false);
-}
-
-async function reloadData(showSuccessToast = false) {
-  try {
-    state.boats = (await api.fetchBoats()).map(normalizeBoat).sort(sortBoats);
-    state.profiles = [];
+  function showApp() {
+    els.authView?.classList.add('hidden');
+    els.appView?.classList.remove('hidden');
+    document.body.classList.add('plan-only-mode');
+    localStorage.setItem(AUTH_KEY, JSON.stringify({ logged: true, at: Date.now() }));
+    state.currentUser = state.currentUser || { name: 'CNH', role: 'admin' };
+    applyRoleVisibility();
     renderAll();
-    if (showSuccessToast) showToast('Synchronisation terminée.', 'success');
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || 'Synchronisation impossible.', 'error');
+    requestAnimationFrame(() => ensureAerialPlanVisible());
   }
-}
 
-function showAuth() {
-  els.authView.classList.remove('hidden');
-  els.appView.classList.add('hidden');
-}
-
-function showApp() {
-  els.authView.classList.add('hidden');
-  els.appView.classList.remove('hidden');
-  setSidebarOpen(false);
-}
-
-function applyRoleVisibility() {
-  document.querySelectorAll('.admin-only').forEach((element) => {
-    element.classList.toggle('hidden-by-role', !isAdmin());
-  });
-  document.querySelectorAll('.manage-only').forEach((element) => {
-    element.classList.toggle('hidden-by-role', !canManageBoats());
-  });
-  if (!isAdmin() && state.activeTab === 'adminTab') {
-    switchTab('dashboardTab');
+  function showAuth() {
+    els.authView?.classList.remove('hidden');
+    els.appView?.classList.add('hidden');
+    document.body.classList.remove('plan-only-mode', 'plan-fullscreen-open');
+    localStorage.removeItem(AUTH_KEY);
   }
-}
 
-function hydrateCurrentUserCard() {
-  els.userDisplayName.textContent = 'Club Nautique Hardelot';
-  els.userDisplayRole.textContent = 'Accès partagé • Tous administrateurs';
-  if (els.accountCardName) els.accountCardName.textContent = 'CNH';
-  if (els.accountCardEmail) els.accountCardEmail.textContent = 'contact@cnhardelot.fr';
-  if (els.accountRoleChip) { els.accountRoleChip.textContent = 'Administrateur'; els.accountRoleChip.className = 'chip selected'; }
-  if (els.accountPasswordChip) { els.accountPasswordChip.textContent = 'Accès par mot de passe'; els.accountPasswordChip.className = 'chip free'; }
-  els.syncPill.textContent = 'Données partagées';
-  els.syncPill.className = 'sync-pill online';
-}
-
-function renderAll() {
-  hydrateCurrentUserCard();
-  renderStats();
-  renderSitePlan();
-  renderSidebarZoneStats();
-  renderZonesBoard();
-  renderBoatGrid();
-  renderProfiles();
-  syncPlanGridVisibility();
-  updatePlanViewButtons();
-  updateViewModeButtons();
-  updatePlanFullscreenButton();
-}
-
-function setPlanView(view) {
-  state.planView = view;
-  if (view === 'grid') {
-    state.focusZone = null;
-    if (isPlanFullscreenOpen()) closePlanFullscreen();
+  function ensureAerialPlanVisible() {
+    setPlanView('map');
+    if (window.matchMedia('(max-width: 760px)').matches) {
+      openPlanFullscreen();
+    } else {
+      closePlanFullscreen();
+      els.sitePlanMap?.scrollIntoView({ block: 'start', behavior: 'auto' });
+    }
   }
-  updatePlanViewButtons();
-  renderZonesBoard();
-  renderSidebarZoneStats();
-  syncPlanGridVisibility();
-  updatePlanFullscreenButton();
-}
 
-/** Plan aérien et grille détaillée ne s’affichent jamais en même temps */
-function syncPlanGridVisibility() {
-  const isMap = state.planView === 'map';
-  els.sitePlanSection?.classList.toggle('hidden', !isMap);
-  els.zonesBoard?.classList.toggle('plan-grid-hidden', isMap);
-  updateZoneFocusBar();
-}
-
-function updatePlanViewButtons() {
-  els.planMapViewBtn?.classList.toggle('active', state.planView === 'map');
-  els.planGridViewBtn?.classList.toggle('active', state.planView === 'grid');
-}
-
-function setFocusZone(zoneId, scrollToGrid = false) {
-  state.focusZone = zoneId || null;
-  if (zoneId) {
-    state.selectedSlot = { zone_id: zoneId, slot_number: state.selectedSlot.zone_id === zoneId ? state.selectedSlot.slot_number : 1 };
-  }
-  renderSitePlan();
-  renderSidebarZoneStats();
-  renderZonesBoard();
-  syncPlanGridVisibility();
-
-  if (scrollToGrid && state.focusZone) {
-    setPlanView('grid');
-    scrollToZoneSection(state.focusZone);
-  }
-}
-
-function updateZoneFocusBar() {
-  if (!els.zoneFocusBar) return;
-  if (!state.focusZone || state.planView === 'grid' || isPlanFullscreenOpen()) {
-    els.zoneFocusBar.classList.add('hidden');
-    return;
-  }
-  const zone = getZone(state.focusZone);
-  const occupied = state.boats.filter((b) => b.zone_id === zone.id).length;
-  els.zoneFocusBar.classList.remove('hidden');
-  els.zoneFocusTitle.textContent = zone.name;
-  els.zoneFocusMeta.textContent = `${occupied} / ${zone.count} occupées • ${zone.description}`;
-}
-
-function scrollToZoneSection(zoneId) {
-  const section = document.querySelector(`.zone-section[data-zone-id="${zoneId}"]`);
-  section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function selectSlot(zoneId, slotNumber, openModal = false) {
-  state.selectedSlot = { zone_id: zoneId, slot_number: slotNumber };
-  if (!isPlanFullscreenOpen()) {
-    state.focusZone = zoneId;
-  }
-  const boat = getBoatBySlot(zoneId, slotNumber);
-  state.selectedBoatId = boat?.id || null;
-  renderSitePlan();
-  renderSidebarZoneStats();
-  renderZonesBoard();
-  syncPlanGridVisibility();
-  if (openModal && (boat || canManageBoats())) {
-    openBoatModal(boat, state.selectedSlot);
-  }
-}
-
-function getZoneOccupancyRate(zoneId) {
-  const zone = getZone(zoneId);
-  const occupied = state.boats.filter((b) => b.zone_id === zoneId).length;
-  return Math.round((occupied / zone.count) * 100);
-}
-
-function renderSitePlan() {
-  if (!els.sitePlanMap) return;
-
-  const overlays = ZONES.map((zone) => {
-    const geom = ZONE_GEOMETRY[zone.id];
-    const occupied = state.boats.filter((b) => b.zone_id === zone.id).length;
-    const rate = getZoneOccupancyRate(zone.id);
-    const zoneFocusActive = !isPlanFullscreenOpen() && state.focusZone;
-    const focused = zoneFocusActive && state.focusZone === zone.id;
-    const dimmed = zoneFocusActive && state.focusZone !== zone.id;
-    const highOccupancy = rate >= 85;
-
-    const slots = Array.from({ length: zone.count }, (_, index) => {
-      const slot = index + 1;
-      const boat = getBoatBySlot(zone.id, slot);
-      const selected =
-        state.selectedSlot.zone_id === zone.id && state.selectedSlot.slot_number === slot;
-      const statusClass = boat ? `status-${boat.status}` : '';
-      const occupiedClass = boat ? 'is-occupied has-photo' : 'plan-slot-free';
-      const selectedClass = selected ? 'is-selected' : '';
-      const tooltip = escapeHtml(planSlotTooltip(zone.id, slot, boat));
-      const ariaLabel = boat
-        ? `${formatEmplacement(zone.id, slot)}, ${displayBoatName(boat)}, ${displayOwnerName(boat)}`
-        : `${formatEmplacement(zone.id, slot)}, libre`;
-      return `<button type="button" class="plan-slot ${occupiedClass} ${statusClass} ${selectedClass}" data-zone="${zone.id}" data-slot="${slot}" title="${tooltip}" aria-label="${escapeHtml(ariaLabel)}">${renderPlanSlotMarkup(zone.id, slot, boat)}</button>`;
-    }).join('');
-
-    return `
-      <div
-        class="zone-overlay zone-overlay-row zone-overlay-${zone.id.toLowerCase()} ${focused ? 'is-focused' : ''} ${dimmed ? 'is-dimmed' : ''} ${highOccupancy ? 'zone-high' : ''}"
-        data-zone="${zone.id}"
-        style="left:${geom.left};top:${geom.top};width:${geom.width};height:${geom.height}"
-        role="group"
-        aria-label="${escapeHtml(zone.name)}, ${occupied} sur ${zone.count} places occupées"
-      >
-        <button type="button" class="zone-overlay-header zone-overlay-focus" data-zone="${zone.id}" aria-label="Sélectionner ${escapeHtml(zone.name)}">
-          <span class="zone-overlay-label">${escapeHtml(zone.name)}</span>
-          <span class="zone-overlay-count">${occupied}/${zone.count}</span>
-        </button>
-        <div class="zone-overlay-fill" aria-hidden="true"><span style="width:${rate}%"></span></div>
-        <div class="zone-mini-slots">${slots}</div>
-      </div>
-    `;
-  }).join('');
-
-  const panHint = isPlanFullscreenOpen()
-    ? 'Glissez pour explorer tout le plan • touchez une place'
-    : 'Touchez une place pour le détail';
-  els.sitePlanMap.innerHTML = `
-    <p class="plan-mobile-hint" aria-hidden="true">${panHint}</p>
-    <div class="site-plan-scroll">
-      <div class="site-plan-frame">
-        <img class="site-plan-photo" src="${PLAN_REFERENCE_IMAGE}" alt="Vue aérienne des emplacements CNH — zones A, B et C" />
-        <div class="site-plan-overlays">${overlays}</div>
-      </div>
-    </div>
-  `;
-  ensurePlanMapResizeObserver();
-  syncPlanDisplaySize();
-}
-
-function ensurePlanMapResizeObserver() {
-  if (!els.sitePlanMap || planMapResizeObserver) return;
-  planMapResizeObserver = new ResizeObserver(() => syncPlanDisplaySize());
-  planMapResizeObserver.observe(els.sitePlanMap);
-  if (els.planFullscreenBody) planMapResizeObserver.observe(els.planFullscreenBody);
-}
-
-/** Affiche le plan à la bonne échelle (sans étirement) pour que les zones restent alignées */
-function syncPlanDisplaySize() {
-  const map = els.sitePlanMap;
-  const scroll = map?.querySelector('.site-plan-scroll');
-  const frame = map?.querySelector('.site-plan-frame');
-  const img = map?.querySelector('.site-plan-photo');
-  if (!map || !frame || !img) return;
-
-  const apply = () => {
-    const natW = img.naturalWidth || PLAN_IMAGE_WIDTH;
-    const natH = img.naturalHeight || PLAN_IMAGE_HEIGHT;
-    const aspect = natW / natH;
-    const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
-    const isFullscreen = isPlanFullscreenOpen();
-
-    map.classList.toggle('site-plan-map--mobile', isMobile && !isFullscreen);
-    map.classList.toggle('site-plan-map--fullscreen', isFullscreen);
-
-    if (isFullscreen) {
-      const headH = els.planFullscreen?.querySelector('.plan-fullscreen-head')?.offsetHeight || 56;
-      const viewportW = window.innerWidth;
-      const viewportH = window.innerHeight;
-      const maxHeight = Math.max(viewportH - headH - 8, 240);
-      const maxWidth = viewportW;
-      const pad = PLAN_FULLSCREEN_PAN_PAD;
-
-      const scale = Math.max(maxWidth / natW, maxHeight / natH) * PLAN_FULLSCREEN_FILL;
-      const displayW = Math.round(natW * scale);
-      const displayH = Math.round(natH * scale);
-      const contentW = displayW + pad * 2;
-      const contentH = displayH + pad * 2;
-
-      frame.style.width = `${displayW}px`;
-      frame.style.height = `${displayH}px`;
-
-      if (els.sitePlanSection) {
-        els.sitePlanSection.style.boxSizing = 'content-box';
-        els.sitePlanSection.style.padding = `${pad}px`;
-        els.sitePlanSection.style.width = `${contentW}px`;
-        els.sitePlanSection.style.minHeight = `${contentH}px`;
-      }
-      map.style.width = `${displayW}px`;
-      map.style.maxWidth = 'none';
-      map.style.overflow = 'visible';
-
-      centerPlanFullscreenScroll(contentW, contentH);
+  function handleLogin(event) {
+    event.preventDefault();
+    const password = els.loginPassword?.value || '';
+    if (password && password !== DEFAULT_PASSWORD) {
+      toast('Mot de passe incorrect. Mot de passe par défaut : CNH2026', 'error');
       return;
     }
+    showApp();
+  }
 
-    resetPlanFullscreenLayout();
+  function logout() {
+    showAuth();
+  }
 
-    if (isMobile) {
-      const containerW = Math.max(map.clientWidth, 1);
-      const minWidth = Math.min(720, Math.max(containerW, 520));
-      const maxHeight = Math.min(Math.max(window.innerHeight * 0.46, 220), 380);
-      let displayH = Math.round(minWidth / aspect);
-      let displayW = minWidth;
+  function applyRoleVisibility() {
+    const manage = canManage();
+    document.querySelectorAll('.manage-only').forEach((el) => el.classList.toggle('hidden-by-role', !manage));
+    document.querySelectorAll('.admin-only').forEach((el) => el.classList.toggle('hidden-by-role', false));
+    if (els.userDisplayName) els.userDisplayName.textContent = state.currentUser?.name || 'CNH';
+    if (els.userDisplayRole) els.userDisplayRole.textContent = 'Administrateur local';
+    if (els.syncPill) {
+      els.syncPill.textContent = 'Local';
+      els.syncPill.className = 'sync-pill demo';
+    }
+    if (els.modeBadge) els.modeBadge.textContent = 'Mode local compatible Live Server et Netlify.';
+    if (els.accountCardName) els.accountCardName.textContent = 'CNH';
+    if (els.accountCardEmail) els.accountCardEmail.textContent = 'Compte local';
+    if (els.accountRoleChip) els.accountRoleChip.textContent = 'Admin';
+    if (els.accountPasswordChip) els.accountPasswordChip.textContent = 'Local';
+  }
 
-      if (displayH > maxHeight) {
-        displayH = maxHeight;
-        displayW = Math.round(displayH * aspect);
+  function renderAll() {
+    renderStats();
+    renderPlan();
+    renderGrid();
+    renderFleet();
+    renderSidebarStats();
+    populateSelects();
+    renderProfiles();
+    setPlanView(state.planView || 'map');
+  }
+
+  function renderStats() {
+    const occupied = state.boats.filter((b) => b.status !== 'archive').length;
+    const complete = state.boats.length ? Math.round((state.boats.filter(isBoatComplete).length / state.boats.length) * 100) : 0;
+    if (els.statTotalSpots) els.statTotalSpots.textContent = allSlots().length;
+    if (els.statOccupied) els.statOccupied.textContent = occupied;
+    if (els.statFree) els.statFree.textContent = allSlots().length - occupied;
+    if (els.statComplete) els.statComplete.textContent = `${complete}%`;
+  }
+
+  function isBoatComplete(boat) {
+    return ['name', 'ownerName', 'ownerPhone', 'zone', 'slot'].every((key) => safeText(boat[key]));
+  }
+
+  function renderPlan() {
+    if (!els.sitePlanMap) return;
+    const selected = Number(state.selectedSlot || 0);
+    els.sitePlanMap.innerHTML = '';
+
+    const hint = document.createElement('div');
+    hint.className = 'plan-mobile-hint';
+    hint.textContent = 'Pincez/zoomez avec le navigateur ou faites défiler horizontalement pour voir tous les emplacements.';
+
+    const scroll = document.createElement('div');
+    scroll.className = 'site-plan-scroll';
+
+    const frame = document.createElement('div');
+    frame.className = 'site-plan-frame';
+    frame.style.aspectRatio = '1549 / 605';
+
+    const img = document.createElement('img');
+    img.className = 'site-plan-photo';
+    img.src = PLAN_IMAGE;
+    img.alt = 'Plan aérien des emplacements CNH';
+    img.onerror = () => {
+      img.src = 'plan emplacements.png';
+    };
+
+    const overlays = document.createElement('div');
+    overlays.className = 'site-plan-overlays';
+
+    zones.forEach((zone) => {
+      const overlay = document.createElement('div');
+      overlay.className = `zone-overlay zone-overlay-row zone-overlay-${zone.id}`;
+      overlay.style.left = `${zone.rect.left}%`;
+      overlay.style.top = `${zone.rect.top}%`;
+      overlay.style.width = `${zone.rect.width}%`;
+      overlay.style.height = `${zone.rect.height}%`;
+
+      const occupied = zone.slots.filter((slot) => boatForSlot(slot)).length;
+      const header = document.createElement('button');
+      header.type = 'button';
+      header.className = 'zone-overlay-header';
+      header.innerHTML = `<span class="zone-overlay-label">${zone.short}</span><span class="zone-overlay-count">${occupied}/${zone.slots.length}</span>`;
+      header.addEventListener('click', (e) => {
+        e.stopPropagation();
+        focusZone(zone.id);
+      });
+
+      const fill = document.createElement('div');
+      fill.className = 'zone-overlay-fill';
+      fill.innerHTML = `<span style="width:${Math.round((occupied / zone.slots.length) * 100)}%"></span>`;
+
+      const miniSlots = document.createElement('div');
+      miniSlots.className = 'zone-mini-slots';
+      zone.slots.forEach((slot) => miniSlots.appendChild(createPlanSlot(slot, selected)));
+
+      overlay.append(header, fill, miniSlots);
+      overlay.addEventListener('click', () => focusZone(zone.id));
+      overlays.appendChild(overlay);
+    });
+
+    frame.append(img, overlays);
+    scroll.appendChild(frame);
+    els.sitePlanMap.append(hint, scroll);
+    updatePlanSize();
+  }
+
+  function updatePlanSize() {
+    document.querySelectorAll('.site-plan-frame').forEach((frame) => {
+      const fullscreen = frame.closest('.site-plan-map--fullscreen');
+      if (fullscreen) {
+        const viewportW = Math.max(window.innerWidth, 320);
+        const viewportH = Math.max(window.innerHeight - 78, 320);
+        const width = window.matchMedia('(max-width: 760px)').matches ? Math.max(980, viewportW * 1.9) : Math.min(1549, viewportW - 60);
+        frame.style.width = `${width}px`;
+        frame.style.height = `${Math.round(width * 605 / 1549)}px`;
+        fullscreen.style.minHeight = `${Math.min(viewportH, Math.round(width * 605 / 1549) + 20)}px`;
+      } else {
+        const parentW = frame.parentElement?.clientWidth || 1000;
+        const width = Math.min(1549, Math.max(760, parentW));
+        frame.style.width = `${width}px`;
+        frame.style.height = `${Math.round(width * 605 / 1549)}px`;
       }
+    });
+  }
 
-      frame.style.width = `${displayW}px`;
-      frame.style.height = `${displayH}px`;
-      centerPlanInScroll(scroll || map, frame);
-      return;
+  function createPlanSlot(slot, selected) {
+    const boat = boatForSlot(slot);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'plan-slot' + (boat ? ' is-occupied' : ' plan-slot-free') + (selected === Number(slot) ? ' is-selected' : '') + (boat?.photoData ? ' has-photo' : '') + (boat?.status ? ` status-${boat.status}` : '');
+    button.title = boat ? `${slot} • ${boat.name || 'Bateau'} • ${boat.ownerName || ''}` : `${slot} • libre`;
+    button.dataset.slot = slot;
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectSlot(slot);
+    });
+
+    if (boat?.photoData) {
+      const photo = document.createElement('img');
+      photo.className = 'plan-slot-photo';
+      photo.src = boat.photoData;
+      photo.alt = '';
+      button.appendChild(photo);
     }
 
-    const maxHeight = Math.min(window.innerHeight * 0.78, 900);
-    const maxWidth = Math.max(map.clientWidth - 8, 1);
-    const scale = Math.min(maxHeight / natH, maxWidth / natW);
-    const displayW = Math.round(natW * scale);
-    const displayH = Math.round(natH * scale);
+    const num = document.createElement('span');
+    num.className = 'plan-slot-num';
+    num.textContent = slot;
+    button.appendChild(num);
 
-    frame.style.width = `${displayW}px`;
-    frame.style.height = `${displayH}px`;
-    if (scroll) scroll.scrollLeft = 0;
-  };
-
-  if (img.complete) {
-    apply();
-  } else {
-    img.addEventListener('load', apply, { once: true });
-  }
-}
-
-function centerPlanInScroll(map, frame) {
-  if (!map || !frame || window.innerWidth > MOBILE_BREAKPOINT) return;
-  requestAnimationFrame(() => {
-    const frameW = frame.offsetWidth;
-    const excess = frameW - map.clientWidth;
-    map.scrollLeft = excess > 8 ? Math.round(excess / 2) : 0;
-  });
-}
-
-function centerPlanFullscreenScroll(contentW, contentH) {
-  requestAnimationFrame(() => {
-    const scrollEl = els.planFullscreenBody;
-    if (!scrollEl) return;
-    scrollEl.scrollLeft = Math.max(0, Math.round((contentW - scrollEl.clientWidth) / 2));
-    scrollEl.scrollTop = Math.max(0, Math.round((contentH - scrollEl.clientHeight) / 2));
-  });
-}
-
-function renderSidebarZoneStats() {
-  if (!els.sidebarZoneStats) return;
-  els.sidebarZoneStats.innerHTML = `
-    <small>Plan du site</small>
-    ${ZONES.map((zone) => {
-      const occupied = state.boats.filter((b) => b.zone_id === zone.id).length;
-      const rate = getZoneOccupancyRate(zone.id);
-      const active = state.focusZone === zone.id;
-      const slotRange = `${getGlobalSlotNumber(zone.id, 1)}–${getGlobalSlotNumber(zone.id, zone.count)}`;
-      return `
-        <button type="button" class="sidebar-zone-item ${active ? 'is-active' : ''}" data-sidebar-zone="${zone.id}">
-          <strong>${escapeHtml(zone.name)}</strong>
-          <span class="sidebar-zone-bar" aria-hidden="true"><span style="width:${rate}%"></span></span>
-          <span>${slotRange} · ${occupied}/${zone.count}</span>
-        </button>
-      `;
-    }).join('')}
-  `;
-}
-
-function renderStats() {
-  const total = ZONES.reduce((sum, zone) => sum + zone.count, 0);
-  const occupied = state.boats.length;
-  const complete = state.boats.filter(isBoatComplete).length;
-  const completeness = state.boats.length ? Math.round((complete / state.boats.length) * 100) : 0;
-  els.statTotalSpots.textContent = String(total);
-  els.statOccupied.textContent = String(occupied);
-  els.statFree.textContent = String(Math.max(total - occupied, 0));
-  els.statComplete.textContent = `${completeness}%`;
-}
-
-function renderCompactSlotCard(zoneId, slot, boat, selected) {
-  const global = getGlobalSlotNumber(zoneId, slot);
-  const title = boat ? truncatePlanText(displayBoatName(boat), 14) : 'Libre';
-  const meta = boat ? truncatePlanText(displayOwnerName(boat), 12) : '';
-  return `
-    <button type="button" class="slot-card slot-card-compact ${boat ? 'is-occupied' : ''} ${selected ? 'is-selected' : ''}" data-zone="${zoneId}" data-slot="${slot}" title="${escapeHtml(planSlotTooltip(zoneId, slot, boat))}">
-      <span class="slot-index">${global}</span>
-      <span class="slot-compact-text">
-        <span class="slot-title">${escapeHtml(title)}</span>
-        ${meta ? `<span class="slot-meta">${escapeHtml(meta)}</span>` : ''}
-      </span>
-    </button>
-  `;
-}
-
-function renderZonesBoard() {
-  const isCompact = state.planView === 'grid';
-  const zonesToShow =
-    isCompact || !state.focusZone ? ZONES : ZONES.filter((z) => z.id === state.focusZone);
-
-  els.zonesBoard.classList.toggle('zones-board-compact', isCompact);
-
-  els.zonesBoard.innerHTML = zonesToShow
-    .map((zone) => {
-      const boatsInZone = state.boats.filter((boat) => boat.zone_id === zone.id);
-      const rate = Math.round((boatsInZone.length / zone.count) * 100);
-      const slotRange = `${getGlobalSlotNumber(zone.id, 1)}–${getGlobalSlotNumber(zone.id, zone.count)}`;
-      const highlighted = state.focusZone === zone.id;
-      const slots = Array.from({ length: zone.count }, (_, index) => {
-        const slot = index + 1;
-        const boat = getBoatBySlot(zone.id, slot);
-        const selected = state.selectedSlot.zone_id === zone.id && state.selectedSlot.slot_number === slot;
-        if (isCompact) {
-          return renderCompactSlotCard(zone.id, slot, boat, selected);
-        }
-        const global = getGlobalSlotNumber(zone.id, slot);
-        return `
-        <button type="button" class="slot-card ${boat ? 'is-occupied' : ''} ${selected ? 'is-selected' : ''}" data-zone="${zone.id}" data-slot="${slot}">
-          <span class="slot-index">${global}</span>
-          <span class="slot-title">${escapeHtml(boat ? displayBoatName(boat) : 'Libre')}</span>
-          <span class="slot-subtitle">${boat ? `${escapeHtml(displayOwnerName(boat))}${boat.owner_phone ? ` • ${escapeHtml(boat.owner_phone)}` : ''} • ${escapeHtml(STATUS_LABELS[boat.status])}` : 'Disponible'}</span>
-        </button>
-      `;
-      }).join('');
-
-      const slotGridClass = isCompact
-        ? `slot-grid-compact slot-grid-cols-${zone.count > 12 ? 'dense' : 'std'}`
-        : 'slot-grid slot-grid-vertical';
-
-      return `
-      <section class="zone-section ${highlighted ? 'is-highlighted' : ''}" data-zone-id="${zone.id}" id="zoneSection-${zone.id}">
-        <div class="zone-header zone-header-compact">
-          <div>
-            <h4>${escapeHtml(zone.name)}</h4>
-            ${isCompact ? `<div class="zone-meta">N° ${slotRange} • ${boatsInZone.length}/${zone.count} • ${rate}%</div>` : `<div class="zone-meta">Emplacements ${slotRange} • ${zone.count} places</div>`}
-          </div>
-          ${isCompact ? '' : `<div class="chip-row">
-            <span class="chip occupied">${boatsInZone.length} occupées</span>
-            <span class="chip free">${zone.count - boatsInZone.length} libres</span>
-            <span class="chip selected">${rate}%</span>
-          </div>`}
-        </div>
-        <div class="${slotGridClass}" aria-label="Places ${escapeHtml(zone.name)}">${slots}</div>
-      </section>
-    `;
-    })
-    .join('');
-}
-
-function matchesFilters(boat) {
-  if (state.filters.zone !== 'all' && boat.zone_id !== state.filters.zone) return false;
-  if (state.filters.status !== 'all' && boat.status !== state.filters.status) return false;
-  if (!state.filters.search) return true;
-
-  const zone = getZone(boat.zone_id);
-  const haystack = [
-    boat.boat_name,
-    boat.owner_name,
-    boat.owner_phone,
-    boat.owner_email,
-    boat.licence_number,
-    boat.registration_number,
-    boat.boat_type,
-    boat.notes,
-    boat.equipment,
-    zone.name,
-    formatEmplacement(boat.zone_id, boat.slot_number),
-    `emplacement ${getGlobalSlotNumber(boat.zone_id, boat.slot_number)}`,
-  ]
-    .join(' ')
-    .toLowerCase();
-  return haystack.includes(state.filters.search);
-}
-
-function renderBoatGrid() {
-  const boats = state.boats.filter(matchesFilters);
-  closeAllSwipeRows();
-
-  if (!boats.length) {
-    els.boatGrid.innerHTML = `
-      <div class="empty-state">
-        <h3>Aucun bateau trouvé</h3>
-        <p>Ajoutez une fiche ou ajustez vos filtres.</p>
-      </div>
-    `;
-    return;
+    if (boat) {
+      const name = document.createElement('span');
+      name.className = 'plan-slot-name';
+      name.textContent = boat.name || 'Bateau';
+      const owner = document.createElement('span');
+      owner.className = 'plan-slot-owner';
+      owner.textContent = boat.ownerName || '';
+      button.append(name, owner);
+    }
+    return button;
   }
 
-  if (state.ui.viewMode === 'compact') {
-    els.boatGrid.className = 'boat-grid compact-grid';
-    els.boatGrid.innerHTML = boats.map(renderCompactBoat).join('');
-  } else {
-    els.boatGrid.className = 'boat-grid';
-    els.boatGrid.innerHTML = boats.map(renderCardBoat).join('');
+  function selectSlot(slot) {
+    state.selectedSlot = Number(slot);
+    const boat = boatForSlot(slot);
+    renderPlan();
+    renderGrid();
+    renderSidebarStats();
+    if (boat) {
+      openBoatModal(boat.id);
+    } else if (canManage()) {
+      openBoatModal(null, Number(slot));
+    } else {
+      toast(`Emplacement ${slot} libre.`);
+    }
   }
-}
 
-function renderCardBoat(boat) {
-  const zone = getZone(boat.zone_id);
-  return `
-    <article class="boat-card">
-      <div class="boat-card-media">
-        <img src="${boat.photo_data || DEFAULT_PHOTO}" alt="Photo de ${escapeHtml(boat.boat_name)}" />
-      </div>
-      <div class="boat-card-body">
+  function focusZone(zoneId) {
+    const zone = zones.find((z) => z.id === zoneId);
+    if (!zone) return;
+    if (els.zoneFocusBar) els.zoneFocusBar.classList.remove('hidden');
+    if (els.zoneFocusTitle) els.zoneFocusTitle.textContent = zone.name;
+    if (els.zoneFocusMeta) {
+      const occupied = zone.slots.filter((slot) => boatForSlot(slot)).length;
+      els.zoneFocusMeta.textContent = `${occupied} occupés • ${zone.slots.length - occupied} libres`;
+    }
+    document.querySelectorAll('.zone-overlay').forEach((el) => {
+      el.classList.toggle('is-focused', el.classList.contains(`zone-overlay-${zone.id}`));
+      el.classList.toggle('is-dimmed', !el.classList.contains(`zone-overlay-${zone.id}`));
+    });
+  }
+
+  function clearZoneFocus() {
+    els.zoneFocusBar?.classList.add('hidden');
+    document.querySelectorAll('.zone-overlay').forEach((el) => el.classList.remove('is-focused', 'is-dimmed'));
+  }
+
+  function setPlanView(view) {
+    state.planView = view === 'grid' ? 'grid' : 'map';
+    els.planMapViewBtn?.classList.toggle('active', state.planView === 'map');
+    els.planGridViewBtn?.classList.toggle('active', state.planView === 'grid');
+    els.sitePlanSection?.classList?.toggle('hidden', state.planView !== 'map');
+    els.zonesBoard?.classList.toggle('plan-grid-hidden', state.planView !== 'grid');
+    updatePlanSize();
+  }
+
+  function renderGrid() {
+    if (!els.zonesBoard) return;
+    els.zonesBoard.innerHTML = '';
+    els.zonesBoard.classList.add('zones-board-compact');
+    zones.forEach((zone) => {
+      const card = document.createElement('section');
+      card.className = 'zone-section';
+      const occupied = zone.slots.filter((slot) => boatForSlot(slot)).length;
+      card.innerHTML = `<div class="zone-header"><div><h4>${zone.name}</h4><div class="zone-meta">${occupied}/${zone.slots.length} occupés</div></div></div>`;
+      const grid = document.createElement('div');
+      grid.className = 'slot-grid slot-grid-compact slot-grid-cols-dense';
+      zone.slots.forEach((slot) => {
+        const boat = boatForSlot(slot);
+        const btn = document.createElement('button');
+        btn.className = `slot-card ${boat ? 'occupied' : 'free'} ${Number(state.selectedSlot) === slot ? 'selected' : ''}`;
+        btn.type = 'button';
+        btn.innerHTML = `<span class="slot-index">${slot}</span><strong>${boat?.name || 'Libre'}</strong><small>${boat?.ownerName || ''}</small>`;
+        btn.addEventListener('click', () => selectSlot(slot));
+        grid.appendChild(btn);
+      });
+      card.appendChild(grid);
+      els.zonesBoard.appendChild(card);
+    });
+  }
+
+  function renderSidebarStats() {
+    if (!els.sidebarZoneStats) return;
+    els.sidebarZoneStats.innerHTML = '';
+    zones.forEach((zone) => {
+      const occupied = zone.slots.filter((slot) => boatForSlot(slot)).length;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sidebar-zone-item';
+      btn.innerHTML = `<strong>${zone.short}</strong><span class="sidebar-zone-bar"><span style="width:${Math.round((occupied / zone.slots.length) * 100)}%"></span></span><small>${occupied}/${zone.slots.length}</small>`;
+      btn.addEventListener('click', () => {
+        closeSidebar();
+        setPlanView('map');
+        focusZone(zone.id);
+      });
+      els.sidebarZoneStats.appendChild(btn);
+    });
+  }
+
+  function renderFleet() {
+    if (!els.boatGrid) return;
+    const query = safeText(els.searchInput?.value).toLowerCase();
+    const zoneFilter = els.zoneFilter?.value || 'all';
+    const statusFilter = els.statusFilter?.value || 'all';
+    const boats = state.boats.filter((boat) => {
+      const haystack = [boat.name, boat.ownerName, boat.ownerPhone, boat.ownerEmail, boat.licenceNumber, boat.registrationNumber, boat.boatType, boat.notes].join(' ').toLowerCase();
+      return (!query || haystack.includes(query)) && (zoneFilter === 'all' || boat.zone === zoneFilter) && (statusFilter === 'all' || boat.status === statusFilter);
+    });
+    els.boatGrid.innerHTML = '';
+    if (!boats.length) {
+      els.boatGrid.innerHTML = '<div class="inline-notice">Aucune fiche bateau pour le moment. Cliquez sur un emplacement libre du plan pour créer une fiche.</div>';
+      return;
+    }
+    boats.forEach((boat) => {
+      const card = document.createElement('article');
+      card.className = 'boat-card';
+      card.innerHTML = `
         <div class="boat-card-top">
+          <img class="boat-card-photo" src="${boat.photoData || PLACEHOLDER_PHOTO}" alt="${escapeHtml(boat.name || 'Bateau')}">
           <div>
-            <h4>${escapeHtml(displayBoatName(boat))}</h4>
-            <div class="subtle-text">${escapeHtml(displayOwnerName(boat))}</div>
+            <span class="status-pill status-${boat.status || 'actif'}">${boat.status || 'actif'}</span>
+            <h4>${escapeHtml(boat.name || 'Sans nom')}</h4>
+            <p class="boat-card-meta">Place ${boat.slot || '—'} • ${escapeHtml(boat.ownerName || 'Propriétaire non renseigné')}</p>
           </div>
-          <span class="chip ${boat.status === 'actif' ? 'free' : boat.status === 'archive' ? 'selected' : 'occupied'}">${escapeHtml(STATUS_LABELS[boat.status])}</span>
-        </div>
-        <div class="chip-row">
-          <span class="chip selected">${escapeHtml(formatEmplacement(boat.zone_id, boat.slot_number))}</span>
-          <span class="chip occupied">${escapeHtml(boat.licence_number || 'Sans licence')}</span>
-        </div>
-        <div class="boat-card-meta">
-          <strong>Téléphone :</strong> ${escapeHtml(boat.owner_phone || '—')}<br />
-          <strong>Email :</strong> ${escapeHtml(boat.owner_email || '—')}<br />
-          <strong>Type :</strong> ${escapeHtml(boat.boat_type || '—')}<br />
-          <strong>Immatriculation :</strong> ${escapeHtml(boat.registration_number || '—')}
         </div>
         <div class="card-actions">
-          <button class="card-button" data-action="open" data-id="${boat.id}">Ouvrir</button>
-          <button class="card-button" data-action="locate" data-id="${boat.id}">Voir la place</button>
-          ${canManageBoats() ? `<button class="card-button danger" data-action="delete" data-id="${boat.id}">Supprimer</button>` : ''}
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-function renderCompactBoat(boat) {
-  const zone = getZone(boat.zone_id);
-  const hasPhoto = Boolean(boat.photo_data);
-  return `
-    <article class="swipe-item" data-boat-id="${boat.id}">
-      <div class="swipe-actions left-actions">
-        <button class="swipe-action-button locate" data-action="locate" data-id="${boat.id}">Voir</button>
-      </div>
-      <div class="swipe-actions right-actions">
-        <button class="swipe-action-button open" data-action="open" data-id="${boat.id}">${canManageBoats() ? 'Éditer' : 'Ouvrir'}</button>
-        ${canManageBoats() ? `<button class="swipe-action-button delete" data-action="delete" data-id="${boat.id}">Suppr.</button>` : ''}
-      </div>
-      <div class="swipe-content" data-swipe-content data-id="${boat.id}">
-        <div class="compact-boat-card" data-action="open" data-id="${boat.id}">
-          <div class="compact-boat-leading ${hasPhoto ? 'has-photo' : ''}">
-            ${hasPhoto ? `<img src="${boat.photo_data}" alt="${escapeHtml(displayBoatName(boat))}" />` : '<span>⛵</span>'}
-          </div>
-          <div class="compact-boat-main">
-            <div class="compact-top-row">
-              <strong class="compact-boat-title">${escapeHtml(displayBoatName(boat))}</strong>
-              <span class="compact-status ${boat.status}">${escapeHtml(STATUS_LABELS[boat.status])}</span>
-            </div>
-            <div class="compact-boat-meta">${escapeHtml(displayOwnerName(boat))}</div>
-            <div class="compact-boat-subline">${escapeHtml(formatEmplacement(boat.zone_id, boat.slot_number))} • ${escapeHtml(boat.licence_number || 'Sans licence')}</div>
-          </div>
-          <div class="compact-boat-chevron">›</div>
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-function renderProfiles() {
-  if (els.profilesNotice) {
-    els.profilesNotice.textContent = 'Mode partagé : un seul mot de passe pour tous les utilisateurs. Tous les utilisateurs sont administrateurs.';
-  }
-  if (els.profilesList) {
-    els.profilesList.innerHTML = `
-      <div class="empty-state">
-        <h3>Accès partagé</h3>
-        <p>Tous les utilisateurs partagent le même mot de passe d'accès et disposent des droits administrateur.</p>
-        <p style="margin-top:12px"><strong>Mot de passe :</strong> CNHardelot</p>
-      </div>
-    `;
-  }
-}
-
-async function updateProfileRow(profileId) {
-  showToast('Gestion des profils désactivée en mode partagé.', 'info');
-}
-
-function isBoatComplete(boat) {
-  return hasMeaningfulBoatInfo(boat);
-}
-
-function getBoatBySlot(zoneId, slotNumber) {
-  return state.boats.find((boat) => boat.zone_id === zoneId && boat.slot_number === slotNumber) || null;
-}
-
-function getBoatById(id) {
-  return state.boats.find((boat) => boat.id === id) || null;
-}
-
-function isSlotConstraintError(error) {
-  const message = String(error?.message || '');
-  return message.includes('boats_zone_id_slot_number_key') || message.includes('duplicate key value violates unique constraint');
-}
-
-function openBoatModal(boat = null, presetSlot = { zone_id: 'A', slot_number: 1 }) {
-  const canEdit = canManageBoats();
-  const slot = boat ? { zone_id: boat.zone_id, slot_number: boat.slot_number } : presetSlot;
-  els.boatModalTitle.textContent = boat
-    ? `Fiche • ${displayBoatName(boat)}`
-    : `Nouvelle fiche • ${formatEmplacement(slot.zone_id, slot.slot_number)}`;
-
-  els.boatId.value = boat?.id || '';
-  els.boatPhotoData.value = boat?.photo_data || '';
-  els.boatPhotoPreview.src = boat?.photo_data || DEFAULT_PHOTO;
-  els.boatName.value = boat?.boat_name || '';
-  els.licenceNumber.value = boat?.licence_number || '';
-  els.registrationNumber.value = boat?.registration_number || '';
-  els.boatType.value = boat?.boat_type || '';
-  els.boatStatus.value = boat?.status || 'actif';
-  els.ownerName.value = boat?.owner_name || '';
-  els.ownerPhone.value = boat?.owner_phone || '';
-  els.ownerEmail.value = boat?.owner_email || '';
-  els.emergencyContact.value = boat?.emergency_contact || '';
-  els.zoneSelect.value = slot.zone_id;
-  updateSlotSelect(slot.zone_id, slot.slot_number);
-  els.lengthInput.value = boat?.length_m || '';
-  els.widthInput.value = boat?.width_m || '';
-  els.equipmentInput.value = boat?.equipment || '';
-  els.notesInput.value = boat?.notes || '';
-
-  toggleBoatFormEditability(canEdit);
-  els.deleteBoatButton.style.display = boat && canEdit ? 'inline-flex' : 'none';
-  els.duplicateBoatButton.style.display = boat && canEdit ? 'inline-flex' : 'none';
-  openModal('boatModal');
-}
-
-function toggleBoatFormEditability(enabled) {
-  [
-    els.boatName,
-    els.licenceNumber,
-    els.registrationNumber,
-    els.boatType,
-    els.boatStatus,
-    els.ownerName,
-    els.ownerPhone,
-    els.ownerEmail,
-    els.emergencyContact,
-    els.zoneSelect,
-    els.slotSelect,
-    els.lengthInput,
-    els.widthInput,
-    els.equipmentInput,
-    els.notesInput,
-  ].forEach((field) => {
-    field.disabled = !enabled;
-  });
-  document.querySelectorAll('#boatModal .manage-only').forEach((element) => {
-    element.classList.toggle('hidden-by-role', !enabled);
-  });
-}
-
-async function saveBoatFlow(event) {
-  event.preventDefault();
-  if (!canManageBoats()) return;
-
-  const boatId = els.boatId.value || createId('boat');
-  const zoneId = els.zoneSelect.value;
-  const slotNumber = Number(els.slotSelect.value);
-  const conflicting = state.boats.find(
-    (boat) => boat.zone_id === zoneId && boat.slot_number === slotNumber && boat.id !== boatId,
-  );
-  if (conflicting) {
-    showToast(`${formatEmplacement(zoneId, slotNumber)} est déjà occupé par ${conflicting.boat_name}.`, 'error');
-    return;
-  }
-
-  const existing = getBoatById(boatId);
-  const draftPayload = {
-    id: boatId,
-    boat_name: els.boatName.value,
-    licence_number: els.licenceNumber.value,
-    registration_number: els.registrationNumber.value,
-    boat_type: els.boatType.value,
-    status: els.boatStatus.value,
-    owner_name: els.ownerName.value,
-    owner_phone: els.ownerPhone.value,
-    owner_email: els.ownerEmail.value,
-    emergency_contact: els.emergencyContact.value,
-    zone_id: zoneId,
-    slot_number: slotNumber,
-    length_m: els.lengthInput.value,
-    width_m: els.widthInput.value,
-    equipment: els.equipmentInput.value,
-    notes: els.notesInput.value,
-    photo_data: els.boatPhotoData.value,
-    created_at: existing?.created_at || new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  if (!hasMeaningfulBoatInfo(draftPayload)) {
-    draftPayload.boat_name = `Bateau non renseigné • ${formatEmplacement(zoneId, slotNumber)}`;
-    draftPayload.notes = 'Fiche créée avec informations minimales.';
-  } else if (!safeText(draftPayload.boat_name)) {
-    draftPayload.boat_name = `Bateau non renseigné • ${formatEmplacement(zoneId, slotNumber)}`;
-  }
-
-  const payload = normalizeBoat(draftPayload);
-
-  try {
-    const saved = await api.upsertBoat(payload);
-    state.boats = state.boats.filter((boat) => boat.id !== saved.id);
-    state.boats.push(saved);
-    state.boats = state.boats.map(normalizeBoat).sort(sortBoats);
-    state.selectedBoatId = saved.id;
-    state.selectedSlot = { zone_id: saved.zone_id, slot_number: saved.slot_number };
-    state.filters = { search: '', zone: 'all', status: 'all' };
-    els.searchInput.value = '';
-    els.zoneFilter.value = 'all';
-    els.statusFilter.value = 'all';
-    renderAll();
-    closeModal('boatModal');
-    showToast('Fiche bateau enregistrée.', 'success');
-    await reloadData(false);
-  } catch (error) {
-    console.error(error);
-    if (isSlotConstraintError(error)) {
-      await reloadData(false);
-      const occupant = getBoatBySlot(zoneId, slotNumber);
-      showToast(
-        `${formatEmplacement(zoneId, slotNumber)} déjà occupé${occupant ? ` par ${displayBoatName(occupant)}` : ''}.`,
-        'error',
-      );
-      return;
-    }
-    showToast(error.message || 'Enregistrement impossible.', 'error');
-  }
-}
-
-function duplicateBoatFlow() {
-  const boat = getBoatById(els.boatId.value);
-  if (!boat || !canManageBoats()) return;
-  els.boatId.value = '';
-  els.boatModalTitle.textContent = `Dupliquer • ${boat.boat_name}`;
-  showToast('La fiche est prête à être enregistrée comme nouveau bateau.', 'success');
-}
-
-async function deleteBoatFlow(boatId) {
-  if (!canManageBoats()) return;
-  const boat = getBoatById(boatId);
-  if (!boat) return;
-  const confirmed = window.confirm(`Supprimer la fiche du bateau “${displayBoatName(boat)}” ?`);
-  if (!confirmed) return;
-
-  try {
-    await api.deleteBoat(boatId);
-    state.selectedBoatId = null;
-    state.selectedSlot = { zone_id: boat.zone_id, slot_number: boat.slot_number };
-    await reloadData(false);
-    closeModal('boatModal');
-    showToast('Fiche supprimée.', 'success');
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || 'Suppression impossible.', 'error');
-  }
-}
-
-async function handlePhotoChange(event) {
-  const [file] = event.target.files || [];
-  if (!file) return;
-  try {
-    const dataUrl = await fileToDataUrl(file, 1200, 0.84);
-    els.boatPhotoData.value = dataUrl;
-    els.boatPhotoPreview.src = dataUrl;
-  } catch (error) {
-    console.error(error);
-    showToast('Impossible de charger la photo.', 'error');
-  } finally {
-    event.target.value = '';
-  }
-}
-
-function removeBoatPhoto() {
-  if (!canManageBoats()) return;
-  els.boatPhotoData.value = '';
-  els.boatPhotoPreview.src = DEFAULT_PHOTO;
-  els.boatPhotoInput.value = '';
-}
-
-function fileToDataUrl(file, maxSize = 1200, quality = 0.84) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = () => {
-      const image = new Image();
-      image.onerror = reject;
-      image.onload = () => {
-        let { width, height } = image;
-        if (width > height && width > maxSize) {
-          height = Math.round((height * maxSize) / width);
-          width = maxSize;
-        } else if (height >= width && height > maxSize) {
-          width = Math.round((width * maxSize) / height);
-          height = maxSize;
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext('2d');
-        context.drawImage(image, 0, 0, width, height);
-        const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-        resolve(canvas.toDataURL(type, quality));
-      };
-      image.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-function handleBoatGridClick(event) {
-  const actionButton = event.target.closest('[data-action]');
-  if (!actionButton) return;
-  const action = actionButton.dataset.action;
-  const boatId = actionButton.dataset.id;
-  const boat = getBoatById(boatId);
-  if (!boat) return;
-
-  if (action === 'open') {
-    state.selectedBoatId = boat.id;
-    state.selectedSlot = { zone_id: boat.zone_id, slot_number: boat.slot_number };
-    renderSitePlan();
-    renderZonesBoard();
-    openBoatModal(boat, state.selectedSlot);
-  }
-
-  if (action === 'locate') {
-    switchTab('dashboardTab');
-    setPlanView('map');
-    selectSlot(boat.zone_id, boat.slot_number, false);
-  }
-
-  if (action === 'delete') {
-    deleteBoatFlow(boat.id);
-  }
-
-  closeAllSwipeRows();
-}
-
-function handleSwipeStart(event) {
-  if (state.ui.viewMode !== 'compact') return;
-  const content = event.target.closest('[data-swipe-content]');
-  if (!content) return;
-  const touch = event.touches[0];
-  state.swipe.activeId = content.dataset.id;
-  state.swipe.startX = touch.clientX;
-  state.swipe.startY = touch.clientY;
-  state.swipe.deltaX = 0;
-  state.swipe.moved = false;
-  content.classList.add('dragging');
-}
-
-function handleSwipeMove(event) {
-  if (state.ui.viewMode !== 'compact' || !state.swipe.activeId) return;
-  const touch = event.touches[0];
-  const deltaX = touch.clientX - state.swipe.startX;
-  const deltaY = touch.clientY - state.swipe.startY;
-  if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 10) return;
-  if (Math.abs(deltaX) < 8) return;
-  state.swipe.moved = true;
-  state.swipe.deltaX = deltaX;
-  const content = document.querySelector(`[data-swipe-content][data-id="${state.swipe.activeId}"]`);
-  if (!content) return;
-  event.preventDefault();
-  const clamped = Math.max(-164, Math.min(96, deltaX));
-  content.style.transform = `translateX(${clamped}px)`;
-}
-
-function handleSwipeEnd() {
-  if (state.ui.viewMode !== 'compact' || !state.swipe.activeId) return;
-  const boatId = state.swipe.activeId;
-  const deltaX = state.swipe.deltaX;
-  const item = document.querySelector(`.swipe-item[data-boat-id="${boatId}"]`);
-  const content = document.querySelector(`[data-swipe-content][data-id="${boatId}"]`);
-  if (content) content.classList.remove('dragging');
-  if (item) {
-    item.classList.remove('open-left', 'open-right');
-    if (deltaX > 70) {
-      closeAllSwipeRows();
-      item.classList.add('open-left');
-    } else if (deltaX < -80) {
-      closeAllSwipeRows();
-      item.classList.add('open-right');
-    } else if (content) {
-      content.style.transform = '';
-    }
-  }
-  if (content) content.style.transform = '';
-  state.swipe.activeId = null;
-  state.swipe.deltaX = 0;
-}
-
-function closeAllSwipeRows() {
-  document.querySelectorAll('.swipe-item.open-left, .swipe-item.open-right').forEach((item) => {
-    item.classList.remove('open-left', 'open-right');
-  });
-}
-
-function openModal(modalId) {
-  const modal = document.getElementById(modalId);
-  if (!modal) return;
-  modal.classList.remove('hidden');
-  modal.setAttribute('aria-hidden', 'false');
-}
-
-function closeModal(modalId) {
-  const modal = document.getElementById(modalId);
-  if (!modal) return;
-  modal.classList.add('hidden');
-  modal.setAttribute('aria-hidden', 'true');
-}
-
-function openPasswordModal(force) {
-  showToast('Le mot de passe est partagé : CNHardelot. Contactez l\'administrateur pour le changer.', 'info');
-}
-
-async function handlePasswordChange(event) {
-  event.preventDefault();
-  showToast('Le mot de passe est partagé : CNHardelot. Contactez l\'administrateur pour le changer.', 'info');
-}
-
-function exportData() {
-  const payload = {
-    exported_at: new Date().toISOString(),
-    mode: state.mode,
-    boats: state.boats,
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `cnh-bateaux-${new Date().toISOString().slice(0, 10)}.json`;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
-async function handleImport(event) {
-  if (!canManageBoats()) {
-    event.target.value = '';
-    return;
-  }
-  const [file] = event.target.files || [];
-  if (!file) return;
-
-  try {
-    const parsed = JSON.parse(await file.text());
-    if (!Array.isArray(parsed.boats)) throw new Error('Format JSON invalide.');
-    const confirmed = window.confirm(
-      'Importer ce fichier et fusionner ses bateaux avec les données existantes ? Les IDs identiques seront remplacés.',
-    );
-    if (!confirmed) return;
-    let knownBoats = [...state.boats];
-    for (const boat of parsed.boats.map(normalizeBoat)) {
-      const slotConflict = knownBoats.find(
-        (existing) => existing.zone_id === boat.zone_id && existing.slot_number === boat.slot_number && existing.id !== boat.id,
-      );
-      const payload = slotConflict ? { ...boat, id: slotConflict.id } : boat;
-      const saved = await api.upsertBoat(payload);
-      knownBoats = knownBoats.filter((item) => item.id !== saved.id).concat(saved);
-    }
-    await reloadData(false);
-    showToast('Import terminé.', 'success');
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || 'Import impossible.', 'error');
-  } finally {
-    event.target.value = '';
-  }
-}
-
-function showToast(message, type = 'info') {
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  els.toastContainer.appendChild(toast);
-  window.setTimeout(() => toast.remove(), 3200);
-}
-
-function registerServiceWorker() {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js').catch((error) => {
-      console.warn('Service worker non enregistré :', error);
+          <button type="button" class="secondary-button" data-action="locate">Localiser</button>
+          <button type="button" class="primary-button" data-action="edit">Ouvrir</button>
+        </div>`;
+      card.querySelector('[data-action="locate"]').addEventListener('click', () => {
+        state.selectedSlot = Number(boat.slot);
+        setPlanView('map');
+        renderPlan();
+        switchTab('dashboardTab');
+        ensureAerialPlanVisible();
+      });
+      card.querySelector('[data-action="edit"]').addEventListener('click', () => openBoatModal(boat.id));
+      els.boatGrid.appendChild(card);
     });
   }
-}
 
-init();
+  function escapeHtml(value) {
+    const div = document.createElement('div');
+    div.textContent = value ?? '';
+    return div.innerHTML;
+  }
+
+  function populateSelects() {
+    if (els.zoneFilter && !els.zoneFilter.dataset.ready) {
+      els.zoneFilter.innerHTML = '<option value="all">Toutes les zones</option>' + zones.map((z) => `<option value="${z.id}">${z.name}</option>`).join('');
+      els.zoneFilter.dataset.ready = '1';
+    }
+    if (els.zoneSelect) {
+      const current = els.zoneSelect.value;
+      els.zoneSelect.innerHTML = zones.map((z) => `<option value="${z.id}">${z.name}</option>`).join('');
+      if (current) els.zoneSelect.value = current;
+    }
+    populateSlotSelect();
+  }
+
+  function populateSlotSelect() {
+    if (!els.slotSelect) return;
+    const zone = zones.find((z) => z.id === (els.zoneSelect?.value || findZoneBySlot(state.selectedSlot)?.id)) || zones[0];
+    const current = Number(els.slotSelect.value || state.selectedSlot || zone.slots[0]);
+    els.slotSelect.innerHTML = zone.slots.map((slot) => {
+      const occupiedBy = boatForSlot(slot);
+      const disabled = occupiedBy && occupiedBy.id !== state.editingId ? 'disabled' : '';
+      return `<option value="${slot}" ${disabled}>${slot}${occupiedBy && occupiedBy.id !== state.editingId ? ' — occupé' : ''}</option>`;
+    }).join('');
+    els.slotSelect.value = zone.slots.includes(current) ? String(current) : String(zone.slots[0]);
+  }
+
+  function openBoatModal(id = null, slot = null) {
+    if (!els.boatModal) return;
+    const existing = id ? state.boats.find((b) => b.id === id) : null;
+    const chosenSlot = Number(slot || existing?.slot || state.selectedSlot || 1);
+    const zone = findZoneBySlot(chosenSlot) || zones[0];
+    state.editingId = existing?.id || null;
+    if (els.boatModalTitle) els.boatModalTitle.textContent = existing ? `Fiche • ${existing.name || `place ${existing.slot}`}` : `Nouvelle fiche • place ${chosenSlot}`;
+    setField('boatId', existing?.id || '');
+    setField('boatPhotoData', existing?.photoData || '');
+    if (els.boatPhotoPreview) els.boatPhotoPreview.src = existing?.photoData || PLACEHOLDER_PHOTO;
+    setField('boatName', existing?.name || '');
+    setField('licenceNumber', existing?.licenceNumber || '');
+    setField('registrationNumber', existing?.registrationNumber || '');
+    setField('boatType', existing?.boatType || '');
+    setField('boatStatus', existing?.status || 'actif');
+    setField('ownerName', existing?.ownerName || '');
+    setField('ownerPhone', existing?.ownerPhone || '');
+    setField('ownerEmail', existing?.ownerEmail || '');
+    setField('emergencyContact', existing?.emergencyContact || '');
+    setField('zoneSelect', existing?.zone || zone.id);
+    populateSlotSelect();
+    setField('slotSelect', existing?.slot || chosenSlot);
+    setField('lengthInput', existing?.length || '');
+    setField('widthInput', existing?.width || '');
+    setField('equipmentInput', existing?.equipment || '');
+    setField('notesInput', existing?.notes || '');
+    if (els.deleteBoatButton) els.deleteBoatButton.style.display = existing ? '' : 'none';
+    if (els.duplicateBoatButton) els.duplicateBoatButton.style.display = existing ? '' : 'none';
+    els.boatModal.classList.remove('hidden');
+    els.boatModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeModal(id) {
+    const modal = $(id);
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden', 'true');
+    if (id === 'boatModal') state.editingId = null;
+  }
+
+  function setField(id, value) {
+    if (els[id]) els[id].value = value ?? '';
+  }
+
+  function handleBoatSubmit(event) {
+    event.preventDefault();
+    if (!canManage()) return toast('Vous n’avez pas les droits de modification.', 'error');
+    const slot = Number(els.slotSelect?.value || 0);
+    const zone = findZoneBySlot(slot)?.id || els.zoneSelect?.value || 'haut';
+    const data = {
+      id: els.boatId?.value || uid(),
+      photoData: els.boatPhotoData?.value || '',
+      name: safeText(els.boatName?.value),
+      licenceNumber: safeText(els.licenceNumber?.value),
+      registrationNumber: safeText(els.registrationNumber?.value),
+      boatType: safeText(els.boatType?.value),
+      status: els.boatStatus?.value || 'actif',
+      ownerName: safeText(els.ownerName?.value),
+      ownerPhone: safeText(els.ownerPhone?.value),
+      ownerEmail: safeText(els.ownerEmail?.value),
+      emergencyContact: safeText(els.emergencyContact?.value),
+      zone,
+      slot,
+      length: els.lengthInput?.value || '',
+      width: els.widthInput?.value || '',
+      equipment: safeText(els.equipmentInput?.value),
+      notes: safeText(els.notesInput?.value),
+      updatedAt: new Date().toISOString()
+    };
+
+    const conflict = state.boats.find((b) => b.id !== data.id && Number(b.slot) === slot && b.status !== 'archive');
+    if (conflict) return toast(`La place ${slot} est déjà occupée par ${conflict.name || 'un bateau'}.`, 'error');
+
+    const index = state.boats.findIndex((b) => b.id === data.id);
+    if (index >= 0) state.boats[index] = data;
+    else state.boats.push(data);
+    state.selectedSlot = slot;
+    saveData(true);
+    closeModal('boatModal');
+    renderAll();
+  }
+
+  function deleteCurrentBoat() {
+    const id = els.boatId?.value;
+    if (!id) return;
+    if (!confirm('Supprimer cette fiche bateau ?')) return;
+    state.boats = state.boats.filter((b) => b.id !== id);
+    saveData(true);
+    closeModal('boatModal');
+    renderAll();
+  }
+
+  function duplicateCurrentBoat() {
+    const id = els.boatId?.value;
+    const boat = state.boats.find((b) => b.id === id);
+    if (!boat) return;
+    const freeSlot = allSlots().find((slot) => !boatForSlot(slot));
+    if (!freeSlot) return toast('Aucune place libre pour dupliquer.', 'error');
+    const copy = { ...boat, id: uid(), name: `${boat.name || 'Bateau'} copie`, slot: freeSlot, zone: findZoneBySlot(freeSlot).id, updatedAt: new Date().toISOString() };
+    state.boats.push(copy);
+    saveData(true);
+    closeModal('boatModal');
+    state.selectedSlot = freeSlot;
+    renderAll();
+  }
+
+  function handlePhoto(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = reader.result;
+      setField('boatPhotoData', value);
+      if (els.boatPhotoPreview) els.boatPhotoPreview.src = value;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removePhoto() {
+    setField('boatPhotoData', '');
+    if (els.boatPhotoPreview) els.boatPhotoPreview.src = PLACEHOLDER_PHOTO;
+  }
+
+  function exportJson() {
+    const blob = new Blob([JSON.stringify({ boats: state.boats, profiles: state.profiles }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cnh-emplacements-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importJson(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        state.boats = Array.isArray(data.boats) ? data.boats : [];
+        state.profiles = Array.isArray(data.profiles) ? data.profiles : [];
+        saveData(true);
+        renderAll();
+      } catch (_) {
+        toast('Fichier JSON invalide.', 'error');
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === tabId));
+    document.querySelectorAll('[data-tab-target]').forEach((btn) => btn.classList.toggle('active', btn.dataset.tabTarget === tabId));
+    if (els.workspaceTitle) els.workspaceTitle.textContent = tabId === 'fleetTab' ? 'Bateaux' : tabId === 'adminTab' ? 'Administration' : 'Plan aérien';
+    if (tabId === 'dashboardTab') requestAnimationFrame(ensureAerialPlanVisible);
+    closeSidebar();
+  }
+
+  function openPlanFullscreen() {
+    if (!els.planFullscreen || !els.planFullscreenBody || !els.sitePlanMap) return;
+    if (els.planFullscreenBody.contains(els.sitePlanMap)) return;
+    els.planFullscreenBody.innerHTML = '';
+    els.planFullscreenBody.appendChild(els.sitePlanMap);
+    els.sitePlanMap.classList.add('site-plan-map--fullscreen');
+    els.planFullscreen.classList.remove('hidden');
+    els.planFullscreen.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('plan-fullscreen-open');
+    updatePlanSize();
+  }
+
+  function closePlanFullscreen() {
+    if (!els.planFullscreen || !els.sitePlanMap) return;
+    const section = $('sitePlanSection');
+    if (section && !section.contains(els.sitePlanMap)) section.appendChild(els.sitePlanMap);
+    els.sitePlanMap.classList.remove('site-plan-map--fullscreen');
+    els.planFullscreen.classList.add('hidden');
+    els.planFullscreen.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('plan-fullscreen-open');
+    updatePlanSize();
+  }
+
+  function openSidebar() {
+    els.sidebar?.classList.add('is-open');
+    els.sidebarBackdrop?.classList.remove('hidden');
+    document.body.classList.add('sidebar-open');
+  }
+
+  function closeSidebar() {
+    els.sidebar?.classList.remove('is-open');
+    els.sidebarBackdrop?.classList.add('hidden');
+    document.body.classList.remove('sidebar-open');
+  }
+
+  function renderProfiles() {
+    if (els.profilesNotice) els.profilesNotice.textContent = 'Gestion locale : les fiches et exports/imports restent disponibles.';
+    if (els.profilesList) els.profilesList.innerHTML = '<div class="mini-card"><strong>CNH</strong><span>Administrateur local</span></div>';
+  }
+
+  function bindEvents() {
+    els.loginForm?.addEventListener('submit', handleLogin);
+    els.logoutButton?.addEventListener('click', logout);
+    els.planMapViewBtn?.addEventListener('click', () => setPlanView('map'));
+    els.planGridViewBtn?.addEventListener('click', () => setPlanView('grid'));
+    els.openPlanFullscreenBtn?.addEventListener('click', openPlanFullscreen);
+    els.closePlanFullscreenBtn?.addEventListener('click', () => {
+      closePlanFullscreen();
+      if (window.matchMedia('(max-width: 760px)').matches) {
+        // En mobile, l'utilisateur doit toujours arriver directement sur le plan aérien.
+        setTimeout(openPlanFullscreen, 120);
+      }
+    });
+    els.zoneFocusAllBtn?.addEventListener('click', clearZoneFocus);
+    els.zoneFocusGridBtn?.addEventListener('click', () => setPlanView('grid'));
+    els.refreshButton?.addEventListener('click', () => { renderAll(); toast('Vue actualisée.', 'success'); });
+    els.exportButton?.addEventListener('click', exportJson);
+    els.importInput?.addEventListener('change', importJson);
+    els.openCreateBoatButton?.addEventListener('click', () => openBoatModal(null, state.selectedSlot || allSlots().find((slot) => !boatForSlot(slot)) || 1));
+    els.floatingAddButton?.addEventListener('click', () => openBoatModal(null, state.selectedSlot || allSlots().find((slot) => !boatForSlot(slot)) || 1));
+    els.searchInput?.addEventListener('input', renderFleet);
+    els.zoneFilter?.addEventListener('change', renderFleet);
+    els.statusFilter?.addEventListener('change', renderFleet);
+    els.zoneSelect?.addEventListener('change', populateSlotSelect);
+    els.boatForm?.addEventListener('submit', handleBoatSubmit);
+    els.deleteBoatButton?.addEventListener('click', deleteCurrentBoat);
+    els.duplicateBoatButton?.addEventListener('click', duplicateCurrentBoat);
+    els.boatPhotoInput?.addEventListener('change', handlePhoto);
+    els.removeBoatPhotoButton?.addEventListener('click', removePhoto);
+    els.sidebarToggle?.addEventListener('click', openSidebar);
+    els.sidebarClose?.addEventListener('click', closeSidebar);
+    els.sidebarBackdrop?.addEventListener('click', closeSidebar);
+    els.openPasswordModalButton?.addEventListener('click', () => {
+      els.passwordModal?.classList.remove('hidden');
+      els.passwordModal?.setAttribute('aria-hidden', 'false');
+    });
+    els.passwordForm?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (els.newPassword?.value !== els.confirmPassword?.value) return toast('Les mots de passe ne correspondent pas.', 'error');
+      closeModal('passwordModal');
+      toast('Mot de passe local validé.', 'success');
+    });
+    document.querySelectorAll('[data-close-modal]').forEach((btn) => btn.addEventListener('click', () => closeModal(btn.dataset.closeModal)));
+    document.querySelectorAll('[data-tab-target]').forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tabTarget)));
+    window.addEventListener('resize', () => requestAnimationFrame(updatePlanSize));
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        closeModal('boatModal');
+        closeModal('passwordModal');
+        closeSidebar();
+      }
+    });
+  }
+
+  async function init() {
+    cacheElements();
+    await loadData();
+    bindEvents();
+    applyRoleVisibility();
+    renderAll();
+    if (localStorage.getItem(AUTH_KEY)) showApp();
+    else showAuth();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();

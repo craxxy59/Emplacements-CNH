@@ -3062,3 +3062,117 @@ body.plan-fullscreen-open .site-plan-frame {
     font-size: 1.7rem;
   }
 }
+
+/* Personnalisation demandée : arrivée directe sur le plan aérien uniquement,
+   tout en gardant les fiches d'emplacements et l'import/export fonctionnels. */
+body.plan-only-mode .club-quickbar,
+body.plan-only-mode .stats-row,
+body.plan-only-mode .plan-view-toggle,
+body.plan-only-mode .plan-hub-head > div:first-child p,
+body.plan-only-mode .zone-focus-bar,
+body.plan-only-mode .zones-board,
+body.plan-only-mode .bottom-nav {
+  display: none !important;
+}
+
+body.plan-only-mode .workspace {
+  min-height: 100vh;
+  padding: 14px;
+  gap: 10px;
+}
+
+body.plan-only-mode .workspace-header {
+  position: static;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.plan-only-mode .workspace-header-main .eyebrow,
+body.plan-only-mode .workspace-header-main .subtle-text {
+  display: none !important;
+}
+
+body.plan-only-mode .workspace-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+body.plan-only-mode .panel-surface.main-panel.plan-hub {
+  padding: 8px;
+  border-radius: 16px;
+  box-shadow: none;
+}
+
+body.plan-only-mode .plan-hub .plan-hub-head {
+  margin-bottom: 8px;
+}
+
+body.plan-only-mode .plan-hub-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+body.plan-only-mode .site-plan-section {
+  display: block !important;
+  margin: 0;
+}
+
+body.plan-only-mode .site-plan-map {
+  padding: 0;
+  border-radius: 12px;
+}
+
+body.plan-only-mode .floating-add-button {
+  display: none !important;
+}
+
+/* Le plan principal reste le plan aérien ; la grille est disponible seulement via JS si besoin. */
+body.plan-only-mode #zonesBoard.plan-grid-hidden,
+body.plan-only-mode #zonesBoard {
+  display: none !important;
+}
+
+@media (min-width: 761px) {
+  body.plan-only-mode .site-plan-frame {
+    max-width: calc(100vw - 46px);
+  }
+}
+
+@media (max-width: 760px) {
+  body.plan-only-mode .workspace {
+    padding: 10px;
+  }
+
+  body.plan-only-mode .workspace-header,
+  body.plan-only-mode .plan-hub-head,
+  body.plan-only-mode .open-plan-fullscreen-btn {
+    display: none !important;
+  }
+
+  body.plan-only-mode .plan-hub .site-plan-section {
+    display: block !important;
+  }
+
+  body.plan-only-mode .panel-surface.main-panel.plan-hub {
+    padding: 0;
+    background: transparent;
+    border: 0;
+  }
+
+  body.plan-fullscreen-open .workspace,
+  body.plan-fullscreen-open .floating-add-button,
+  body.plan-fullscreen-open .bottom-nav {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  body.plan-only-mode .plan-fullscreen-head {
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 10px 8px;
+  }
+
+  body.plan-only-mode .plan-fullscreen-head h2 {
+    font-size: 1rem;
+  }
+}
