@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cnh-pwa-v1.0.0';
+const CACHE_NAME = 'cnh-pwa-v1.0.1';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -7,7 +7,8 @@ const STATIC_ASSETS = [
   '/config.js',
   '/data.json',
   '/manifest.webmanifest',
-  '/assets/favicon.svg',
+  '/assets/favicon.png',
+  '/assets/logo-cnh-real.jpg',
   '/assets/icon-192.png',
   '/assets/icon-512.png',
   '/assets/apple-touch-icon.png',
