@@ -3935,3 +3935,188 @@ body.plan-only-mode #zonesBoard {
     color: #fff !important;
   }
 }
+
+/* Interface mobile premium : menu hamburger en panneau d'actions, sans modifier le plan. */
+@media (max-width: 760px) {
+  body.plan-only-mode .plan-fullscreen-head {
+    display: flex !important;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    right: auto;
+    width: auto;
+    min-height: auto;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 0 0 10px !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    z-index: 500 !important;
+    pointer-events: none !important;
+  }
+
+  body.plan-only-mode .plan-fullscreen-head > div:first-child,
+  body.plan-only-mode #closePlanFullscreenBtn {
+    display: none !important;
+  }
+
+  body.plan-only-mode .plan-fullscreen-actions {
+    display: block !important;
+    position: relative !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    pointer-events: auto !important;
+  }
+
+  body.plan-only-mode #fsMenuBtn.fullscreen-hamburger {
+    display: inline-flex !important;
+    width: 48px;
+    height: 48px;
+    padding: 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.34);
+    background: rgba(8, 31, 51, 0.88);
+    color: #fff;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.32);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+  }
+
+  body.plan-only-mode #fsMenuBtn.fullscreen-hamburger span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  body.plan-only-mode #fsMenuBtn[aria-expanded="true"] {
+    background: linear-gradient(135deg, #0d5f8f, #3ea0d0);
+  }
+
+  body.plan-only-mode .mobile-action-menu {
+    position: fixed !important;
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    top: auto !important;
+    z-index: 520 !important;
+    width: auto !important;
+    max-height: min(72dvh, 540px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px;
+    border-radius: 26px;
+    background:
+      linear-gradient(180deg, rgba(13,39,64,0.98), rgba(8,31,51,0.98));
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: 0 24px 70px rgba(0,0,0,0.44);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    pointer-events: auto !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu::before {
+    content: "Actions CNH";
+    grid-column: 1 / -1;
+    color: rgba(255,255,255,0.92);
+    font-weight: 950;
+    letter-spacing: 0.03em;
+    padding: 2px 4px 4px;
+  }
+
+  body.plan-only-mode .mobile-action-menu.hidden {
+    display: none !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu > button,
+  body.plan-only-mode .mobile-action-menu > label {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 52px !important;
+    padding: 11px 10px !important;
+    border-radius: 16px !important;
+    font-size: 0.88rem !important;
+    font-weight: 900 !important;
+    line-height: 1.1;
+    text-align: center;
+    white-space: normal;
+    box-shadow: none !important;
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu > .hidden-by-role {
+    display: none !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu #fsRefreshBtn {
+    grid-column: 1 / -1;
+    background: rgba(255,255,255,0.10) !important;
+    color: #fff !important;
+    border: 1px solid rgba(255,255,255,0.16);
+  }
+
+  body.plan-only-mode .mobile-action-menu #fsNewBoatBtn:not(.hidden-by-role) {
+    grid-column: 1 / -1;
+    min-height: 56px !important;
+    background: linear-gradient(135deg, #16724f, #23a36e) !important;
+    color: #fff !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu #fsExportBtn,
+  body.plan-only-mode .mobile-action-menu #fsImportBtn:not(.hidden-by-role) {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu #fsExportBtn {
+    background: linear-gradient(135deg, #0d5f8f, #3ea0d0) !important;
+    color: #fff !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu #fsImportBtn:not(.hidden-by-role) {
+    background: linear-gradient(135deg, #9b6b1d, #d3a14b) !important;
+    color: #fff !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu #fsLogoutBtn {
+    grid-column: 1 / -1;
+    color: #fff !important;
+    background: rgba(198,74,74,0.20) !important;
+    border: 1px solid rgba(255,255,255,0.14);
+  }
+
+  body.plan-only-mode .mobile-excel-button,
+  body.plan-only-mode .floating-add-button,
+  body.plan-only-mode .bottom-nav {
+    display: none !important;
+  }
+
+  body.plan-only-mode .plan-fullscreen-body {
+    padding: 0 !important;
+  }
+
+  .toast-container {
+    left: 10px;
+    right: 10px;
+    top: calc(10px + env(safe-area-inset-top, 0px));
+  }
+
+  .toast {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+    border-radius: 16px;
+  }
+}
