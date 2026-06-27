@@ -11,6 +11,7 @@ const DEFAULT_HASHES = {
   admin: 'cd057980c403b7ab2f03e22c1557e518270031a81487a6117acc19611dd72b6b'
 };
 
+
 // Les valeurs par défaut servent uniquement à initialiser l'écran admin.
 // Elles ne sont pas envoyées dans app.js.
 const DEFAULT_PASSWORDS = {
