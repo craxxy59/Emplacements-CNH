@@ -1,0 +1,9 @@
+{
+  "name": "CNH Emplacements",
+  "short_name": "CNH",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0d2740",
+  "theme_color": "#0d2740",
+  "icons": []
+}
