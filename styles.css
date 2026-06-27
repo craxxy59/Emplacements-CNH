@@ -3199,3 +3199,63 @@ body.plan-only-mode #zonesBoard {
     margin-left: 0 !important;
   }
 }
+
+/* Mobile : garder les fonctions PC accessibles même quand le plan aérien est ouvert. */
+.plan-fullscreen-actions {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  body.plan-only-mode .plan-fullscreen-head {
+    align-items: center;
+  }
+
+  body.plan-only-mode .plan-fullscreen-actions {
+    display: flex;
+    flex: 1;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 0 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.plan-only-mode .plan-fullscreen-actions .small-button,
+  body.plan-only-mode .plan-fullscreen-actions label.small-button {
+    min-height: 38px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+    font-size: 0.78rem;
+  }
+
+  body.plan-only-mode .plan-fullscreen-close {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  /* Si on ouvre le menu depuis le plein écran, il doit passer devant le plan. */
+  body.plan-fullscreen-open .sidebar-backdrop {
+    z-index: 70;
+  }
+
+  body.plan-fullscreen-open .sidebar {
+    z-index: 75;
+  }
+
+  /* Quand l'utilisateur réduit le plan mobile, les actions PC redeviennent visibles. */
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header {
+    display: grid !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .open-plan-fullscreen-btn {
+    display: inline-flex !important;
+    width: 100%;
+    justify-content: center;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header-main .eyebrow,
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header-main .subtle-text {
+    display: none !important;
+  }
+}
