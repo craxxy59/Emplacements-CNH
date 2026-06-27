@@ -529,7 +529,7 @@
             <p class="eyebrow">Sécurité</p>
             <h3>Modifier les mots de passe</h3>
             <p id="passwordModalText" class="subtle-text">
-              Compte administrateur : modifiez les mots de passe consultation, modification et administration. Le mot de passe debug/super admin n’est pas modifiable.
+              Compte administrateur : modifiez seulement le ou les mots de passe souhaités. Les anciens mots de passe sont affichés si disponibles. Le mot de passe debug/super admin n’est pas modifiable.
             </p>
           </div>
         </div>
@@ -537,17 +537,17 @@
         <form id="passwordForm" class="stack-form">
           <div class="field-group">
             <label for="readonlyPasswordInput">Mot de passe consultation</label>
-            <input id="readonlyPasswordInput" type="password" autocomplete="off" required minlength="3" placeholder="Nouveau mot de passe consultation" />
+            <input id="readonlyPasswordInput" type="text" autocomplete="off" minlength="3" placeholder="Mot de passe consultation" />
           </div>
           <div class="field-group">
             <label for="managerPasswordInput">Mot de passe modification</label>
-            <input id="managerPasswordInput" type="password" autocomplete="off" required minlength="3" placeholder="Nouveau mot de passe modification" />
+            <input id="managerPasswordInput" type="text" autocomplete="off" minlength="3" placeholder="Mot de passe modification" />
           </div>
           <div class="field-group">
             <label for="adminPasswordInput">Mot de passe administration</label>
-            <input id="adminPasswordInput" type="password" autocomplete="off" required minlength="4" placeholder="Nouveau mot de passe administration" />
+            <input id="adminPasswordInput" type="text" autocomplete="off" minlength="4" placeholder="Mot de passe administration" />
           </div>
-          <button type="submit" class="primary-button wide">Enregistrer les mots de passe</button>
+          <button type="submit" class="primary-button wide">Enregistrer les changements</button>
           <button type="button" class="ghost-button wide" data-close-modal="passwordModal">Fermer</button>
         </form>
       </div>

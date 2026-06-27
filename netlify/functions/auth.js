@@ -2,14 +2,21 @@ const crypto = require('crypto');
 const { getStore } = require('@netlify/blobs');
 
 const STORE_NAME = 'cnh-marina-auth';
-const KEY = 'password-hashes';
+const KEY = 'password-record';
 
-// Mots de passe par défaut stockés uniquement sous forme d'empreintes SHA-256.
-// Aucun mot de passe en clair n'est présent dans app.js.
+// Mots de passe par défaut stockés sous forme d'empreintes SHA-256.
 const DEFAULT_HASHES = {
   readonly: '7ca7991ff7b32be24a58293e79e479b50089e87e140084bb861ff28d32d4aaeb',
-  manager: '00bbc646708559a07900e8e7b341d34f9a9fd44c3fd20b659ff8059e425f3527',
+  manager: '273ab832692e54bed7d1f368383fbce7ab6ed96d7483b1a043c4d129aea373e4',
   admin: 'b92a5740ce59817cf38b088d15f652a498156e431631ba9982936ec14dfc4699'
+};
+
+// Les valeurs par défaut servent uniquement à initialiser l'écran admin.
+// Elles ne sont pas envoyées dans app.js.
+const DEFAULT_PASSWORDS = {
+  readonly: 'CNH2026',
+  manager: 'CNH',
+  admin: 'CNHardelot'
 };
 
 // Mot de passe debug/super admin fixe, non modifiable par l'administrateur.
@@ -35,6 +42,27 @@ function sha256(value) {
 
 function getSecret() {
   return process.env.CNH_AUTH_SECRET || process.env.NETLIFY_AUTH_TOKEN || process.env.NETLIFY_SITE_ID || 'cnh-dev-secret';
+}
+
+function getEncryptionKey() {
+  return crypto.createHash('sha256').update(getSecret(), 'utf8').digest();
+}
+
+function encryptText(value) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', getEncryptionKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(String(value || ''), 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString('base64')}.${tag.toString('base64')}.${encrypted.toString('base64')}`;
+}
+
+function decryptText(value) {
+  if (!value || typeof value !== 'string' || value.split('.').length !== 3) return '';
+  const [ivB64, tagB64, encryptedB64] = value.split('.');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', getEncryptionKey(), Buffer.from(ivB64, 'base64'));
+  decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+  const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedB64, 'base64')), decipher.final()]);
+  return decrypted.toString('utf8');
 }
 
 function sign(payload) {
@@ -66,19 +94,75 @@ function getBlobStore() {
   return getStore(STORE_NAME);
 }
 
-async function getPasswordHashes() {
-  const store = getBlobStore();
-  const saved = await store.get(KEY, { type: 'json' });
+function buildRecordFromPasswords(passwords) {
   return {
-    readonly: saved?.readonly || DEFAULT_HASHES.readonly,
-    manager: saved?.manager || DEFAULT_HASHES.manager,
-    admin: saved?.admin || DEFAULT_HASHES.admin
+    version: 2,
+    hashes: {
+      readonly: sha256(passwords.readonly),
+      manager: sha256(passwords.manager),
+      admin: sha256(passwords.admin)
+    },
+    encrypted: {
+      readonly: encryptText(passwords.readonly),
+      manager: encryptText(passwords.manager),
+      admin: encryptText(passwords.admin)
+    },
+    updatedAt: new Date().toISOString()
   };
 }
 
-async function setPasswordHashes(hashes) {
+function decryptPasswords(record) {
+  return {
+    readonly: decryptText(record?.encrypted?.readonly),
+    manager: decryptText(record?.encrypted?.manager),
+    admin: decryptText(record?.encrypted?.admin)
+  };
+}
+
+async function getPasswordRecord() {
   const store = getBlobStore();
-  await store.setJSON(KEY, hashes);
+  const saved = await store.get(KEY, { type: 'json' });
+
+  if (saved?.hashes) {
+    const passwords = decryptPasswords(saved);
+
+    // Migration douce : si les mots de passe enregistrés correspondent aux valeurs par défaut,
+    // on peut reconstituer l'affichage. Pour des anciens mots de passe personnalisés stockés
+    // uniquement en hash, il faudra les ressaisir une fois.
+    const migratedPasswords = {
+      readonly: passwords.readonly || (saved.hashes.readonly === DEFAULT_HASHES.readonly ? DEFAULT_PASSWORDS.readonly : ''),
+      manager: passwords.manager || (saved.hashes.manager === DEFAULT_HASHES.manager ? DEFAULT_PASSWORDS.manager : ''),
+      admin: passwords.admin || (saved.hashes.admin === DEFAULT_HASHES.admin ? DEFAULT_PASSWORDS.admin : '')
+    };
+
+    return {
+      version: saved.version || 1,
+      hashes: {
+        readonly: saved.hashes.readonly || DEFAULT_HASHES.readonly,
+        manager: saved.hashes.manager || DEFAULT_HASHES.manager,
+        admin: saved.hashes.admin || DEFAULT_HASHES.admin
+      },
+      passwords: migratedPasswords
+    };
+  }
+
+  return {
+    version: 2,
+    hashes: { ...DEFAULT_HASHES },
+    passwords: { ...DEFAULT_PASSWORDS }
+  };
+}
+
+async function savePasswordRecordFromPasswords(passwords) {
+  const store = getBlobStore();
+  const record = buildRecordFromPasswords(passwords);
+  await store.setJSON(KEY, record);
+  return record;
+}
+
+function assertAdmin(token) {
+  const auth = verifyToken(token);
+  return auth && ['admin', 'debug'].includes(auth.role) ? auth : null;
 }
 
 exports.handler = async (event) => {
@@ -94,7 +178,8 @@ exports.handler = async (event) => {
 
   if (body.action === 'login') {
     const hash = sha256(body.password || '');
-    const hashes = await getPasswordHashes();
+    const record = await getPasswordRecord();
+    const hashes = record.hashes;
 
     if (hash === DEBUG_HASH) {
       return jsonResponse({ ok: true, user: { name: 'Debug / Super admin', role: 'debug' }, token: createToken('debug') });
@@ -111,26 +196,38 @@ exports.handler = async (event) => {
     return jsonResponse({ ok: false, error: 'Mot de passe incorrect' }, 401);
   }
 
-  if (body.action === 'update-passwords') {
-    const auth = verifyToken(body.token || event.headers.authorization?.replace(/^Bearer\s+/i, ''));
-    if (!auth || !['admin', 'debug'].includes(auth.role)) {
-      return jsonResponse({ ok: false, error: 'Accès administrateur requis' }, 403);
-    }
+  if (body.action === 'get-passwords') {
+    const auth = assertAdmin(body.token || event.headers.authorization?.replace(/^Bearer\s+/i, ''));
+    if (!auth) return jsonResponse({ ok: false, error: 'Accès administrateur requis' }, 403);
+    const record = await getPasswordRecord();
+    return jsonResponse({ ok: true, passwords: record.passwords });
+  }
 
-    const readonly = String(body.passwords?.readonly || '').trim();
-    const manager = String(body.passwords?.manager || '').trim();
-    const admin = String(body.passwords?.admin || '').trim();
-    if (readonly.length < 3 || manager.length < 3 || admin.length < 4) {
+  if (body.action === 'update-passwords') {
+    const auth = assertAdmin(body.token || event.headers.authorization?.replace(/^Bearer\s+/i, ''));
+    if (!auth) return jsonResponse({ ok: false, error: 'Accès administrateur requis' }, 403);
+
+    const current = await getPasswordRecord();
+    const passwords = {
+      readonly: String(body.passwords?.readonly || '').trim() || current.passwords.readonly,
+      manager: String(body.passwords?.manager || '').trim() || current.passwords.manager,
+      admin: String(body.passwords?.admin || '').trim() || current.passwords.admin
+    };
+
+    if (!passwords.readonly || !passwords.manager || !passwords.admin) {
+      return jsonResponse({ ok: false, error: 'Impossible de conserver un ancien mot de passe non récupérable. Renseigne les 3 une fois.' }, 400);
+    }
+    if (passwords.readonly.length < 3 || passwords.manager.length < 3 || passwords.admin.length < 4) {
       return jsonResponse({ ok: false, error: 'Les mots de passe sont trop courts' }, 400);
     }
 
-    const hashes = { readonly: sha256(readonly), manager: sha256(manager), admin: sha256(admin) };
+    const hashes = { readonly: sha256(passwords.readonly), manager: sha256(passwords.manager), admin: sha256(passwords.admin) };
     if (new Set([hashes.readonly, hashes.manager, hashes.admin, DEBUG_HASH]).size < 4) {
       return jsonResponse({ ok: false, error: 'Les mots de passe doivent être différents du debug et entre eux' }, 400);
     }
 
-    await setPasswordHashes(hashes);
-    return jsonResponse({ ok: true });
+    await savePasswordRecordFromPasswords(passwords);
+    return jsonResponse({ ok: true, passwords });
   }
 
   return jsonResponse({ ok: false, error: 'Action inconnue' }, 400);

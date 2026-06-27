@@ -1031,13 +1031,28 @@
     els.fsMenuBtn?.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
   }
 
-  function openPasswordManagerModal() {
+  async function openPasswordManagerModal() {
     if (!canAdmin()) return toast('Accès administrateur requis.', 'error');
     if (els.readonlyPasswordInput) els.readonlyPasswordInput.value = '';
     if (els.managerPasswordInput) els.managerPasswordInput.value = '';
     if (els.adminPasswordInput) els.adminPasswordInput.value = '';
     els.passwordModal?.classList.remove('hidden');
     els.passwordModal?.setAttribute('aria-hidden', 'false');
+
+    try {
+      const res = await fetch(AUTH_ENDPOINT, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'get-passwords', token: state.authToken })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Impossible de récupérer les mots de passe');
+      if (els.readonlyPasswordInput) els.readonlyPasswordInput.value = data.passwords?.readonly || '';
+      if (els.managerPasswordInput) els.managerPasswordInput.value = data.passwords?.manager || '';
+      if (els.adminPasswordInput) els.adminPasswordInput.value = data.passwords?.admin || '';
+    } catch (error) {
+      toast(error.message || 'Mots de passe actuels indisponibles. Renseigne les champs à modifier.', 'error');
+    }
   }
 
   function handleFullscreenAction(event) {
@@ -1164,7 +1179,9 @@
       const readonlyPassword = safeText(els.readonlyPasswordInput?.value);
       const managerPassword = safeText(els.managerPasswordInput?.value);
       const adminPassword = safeText(els.adminPasswordInput?.value);
-      if (readonlyPassword.length < 3 || managerPassword.length < 3 || adminPassword.length < 4) return toast('Les mots de passe sont trop courts.', 'error');
+      if (readonlyPassword && readonlyPassword.length < 3) return toast('Mot de passe consultation trop court.', 'error');
+      if (managerPassword && managerPassword.length < 3) return toast('Mot de passe modification trop court.', 'error');
+      if (adminPassword && adminPassword.length < 4) return toast('Mot de passe administration trop court.', 'error');
       try {
         const res = await fetch(AUTH_ENDPOINT, {
           method: 'POST',
@@ -1177,6 +1194,11 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) throw new Error(data.error || 'Erreur');
+        if (data.passwords) {
+          if (els.readonlyPasswordInput) els.readonlyPasswordInput.value = data.passwords.readonly || '';
+          if (els.managerPasswordInput) els.managerPasswordInput.value = data.passwords.manager || '';
+          if (els.adminPasswordInput) els.adminPasswordInput.value = data.passwords.admin || '';
+        }
         closeModal('passwordModal');
         toast('Les mots de passe ont été mis à jour.', 'success');
       } catch (error) {
