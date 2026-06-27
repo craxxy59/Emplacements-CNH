@@ -334,17 +334,23 @@
             <p class="eyebrow">Plan du site</p>
             <h2 id="planFullscreenTitle">46 emplacements</h2>
           </div>
-          <div class="plan-fullscreen-actions" aria-label="Actions rapides mobile">
-            <button type="button" id="fsMenuBtn" class="fullscreen-hamburger" aria-label="Ouvrir le menu">
+          <div class="plan-fullscreen-actions" aria-label="Menu mobile">
+            <button type="button" id="fsMenuBtn" class="fullscreen-hamburger" aria-label="Ouvrir le menu mobile" aria-expanded="false">
               <span></span>
               <span></span>
               <span></span>
             </button>
-            <button type="button" id="fsRefreshBtn" class="secondary-button small-button">Sync</button>
-            <button type="button" id="fsExportBtn" class="secondary-button small-button">Export</button>
-            <button type="button" id="fsImportBtn" class="secondary-button small-button manage-only">Import</button>
-            <input id="fsImportInput" type="file" accept="application/json" hidden />
-            <button type="button" id="fsNewBoatBtn" class="primary-button small-button manage-only">Nouvelle fiche</button>
+            <div id="mobileActionMenu" class="mobile-action-menu hidden" aria-label="Actions mobile">
+              <button type="button" id="fsRefreshBtn" class="secondary-button small-button">Synchroniser</button>
+              <button type="button" id="fsExcelBtn" class="secondary-button small-button">Générer Excel</button>
+              <button type="button" id="fsExportBtn" class="secondary-button small-button">Exporter JSON</button>
+              <button type="button" id="fsImportBtn" class="secondary-button small-button manage-only">Importer JSON</button>
+              <input id="fsImportInput" type="file" accept="application/json" hidden />
+              <button type="button" id="fsNewBoatBtn" class="primary-button small-button manage-only">Nouvelle fiche</button>
+              <button type="button" id="fsFleetBtn" class="secondary-button small-button debugger-only">Bateaux</button>
+              <button type="button" id="fsAdminBtn" class="secondary-button small-button debugger-only">Administration</button>
+              <button type="button" id="fsLogoutBtn" class="ghost-button small-button">Déconnexion</button>
+            </div>
           </div>
           <button type="button" id="closePlanFullscreenBtn" class="plan-fullscreen-close" aria-label="Réduire le plan">×</button>
         </header>
@@ -520,7 +526,7 @@
             <p class="eyebrow">Sécurité</p>
             <h3>Modifier les mots de passe</h3>
             <p id="passwordModalText" class="subtle-text">
-              Compte administrateur uniquement : modifiez le mot de passe consultation et le mot de passe administration.
+              Compte administrateur : modifiez les mots de passe consultation, modification et administration. Le mot de passe debug/super admin n’est pas modifiable.
             </p>
           </div>
         </div>
@@ -528,13 +534,17 @@
         <form id="passwordForm" class="stack-form">
           <div class="field-group">
             <label for="readonlyPasswordInput">Mot de passe consultation</label>
-            <input id="readonlyPasswordInput" type="text" autocomplete="off" required minlength="4" placeholder="Mot de passe consultation" />
+            <input id="readonlyPasswordInput" type="text" autocomplete="off" required minlength="3" placeholder="Mot de passe consultation" />
+          </div>
+          <div class="field-group">
+            <label for="managerPasswordInput">Mot de passe modification</label>
+            <input id="managerPasswordInput" type="text" autocomplete="off" required minlength="3" placeholder="Mot de passe modification" />
           </div>
           <div class="field-group">
             <label for="adminPasswordInput">Mot de passe administration</label>
             <input id="adminPasswordInput" type="text" autocomplete="off" required minlength="4" placeholder="Mot de passe administration" />
           </div>
-          <button type="submit" class="primary-button wide">Enregistrer les 2 mots de passe</button>
+          <button type="submit" class="primary-button wide">Enregistrer les mots de passe</button>
           <button type="button" class="ghost-button wide" data-close-modal="passwordModal">Fermer</button>
         </form>
       </div>

@@ -1,6 +1,6 @@
 const { getStore } = require('@netlify/blobs');
 
-const DEFAULT_DATA = { boats: [], profiles: [], settings: { passwords: { readonly: 'CNH2026', admin: 'CNHardelot' } } };
+const DEFAULT_DATA = { boats: [], profiles: [], settings: { passwords: { readonly: 'CNH2026', manager: 'CNH', admin: 'CNHardelot' } } };
 const STORE_NAME = 'cnh-marina-data';
 const KEY = 'main';
 

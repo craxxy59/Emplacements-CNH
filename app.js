@@ -3,7 +3,8 @@
 
   const STORAGE_KEY = 'cnh-marina-manager-data-v5';
   const AUTH_KEY = 'cnh-marina-manager-auth-v5';
-  const DEFAULT_PASSWORDS = { readonly: 'CNH2026', admin: 'CNHardelot' };
+  const DEFAULT_PASSWORDS = { readonly: 'CNH2026', manager: 'CNH', admin: 'CNHardelot' };
+  const DEBUG_PASSWORD = 'Ght10CD9';
   const SYNC_ENDPOINT = '/.netlify/functions/data';
   const PLAN_IMAGE = 'plan-reference.png';
   const PLACEHOLDER_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
@@ -66,8 +67,8 @@
       'boatModal', 'boatForm', 'boatId', 'boatPhotoData', 'boatPhotoPreview', 'boatPhotoInput', 'removeBoatPhotoButton', 'boatModalTitle',
       'boatName', 'licenceNumber', 'registrationNumber', 'boatType', 'boatStatus', 'ownerName', 'ownerPhone', 'ownerEmail', 'emergencyContact',
       'zoneSelect', 'slotSelect', 'lengthInput', 'widthInput', 'equipmentInput', 'notesInput', 'duplicateBoatButton', 'deleteBoatButton',
-      'passwordModal', 'passwordForm', 'readonlyPasswordInput', 'adminPasswordInput', 'openPasswordModalButton', 'accountCardName', 'accountCardEmail', 'accountRoleChip', 'accountPasswordChip',
-      'workspaceTitle', 'workspaceSubtitle', 'fsMenuBtn', 'fsRefreshBtn', 'fsExportBtn', 'fsImportBtn', 'fsImportInput', 'fsNewBoatBtn', 'sidebar', 'sidebarBackdrop', 'sidebarToggle', 'sidebarClose', 'cardModeButton', 'compactModeButton',
+      'passwordModal', 'passwordForm', 'readonlyPasswordInput', 'managerPasswordInput', 'adminPasswordInput', 'openPasswordModalButton', 'accountCardName', 'accountCardEmail', 'accountRoleChip', 'accountPasswordChip',
+      'workspaceTitle', 'workspaceSubtitle', 'fsMenuBtn', 'mobileActionMenu', 'fsRefreshBtn', 'fsExcelBtn', 'fsExportBtn', 'fsImportBtn', 'fsImportInput', 'fsNewBoatBtn', 'fsFleetBtn', 'fsAdminBtn', 'fsLogoutBtn', 'sidebar', 'sidebarBackdrop', 'sidebarToggle', 'sidebarClose', 'cardModeButton', 'compactModeButton',
       'profilesNotice', 'profilesList'
     ].forEach((id) => { els[id] = $(id); });
   }
@@ -75,7 +76,9 @@
   const allSlots = () => zones.flatMap((z) => z.slots);
   const findZoneBySlot = (slot) => zones.find((z) => z.slots.includes(Number(slot)));
   const boatForSlot = (slot) => state.boats.find((boat) => Number(boat.slot) === Number(slot) && boat.status !== 'archive');
-  const canManage = () => !state.currentUser || state.currentUser.role !== 'lecture';
+  const canManage = () => ['manager', 'admin', 'debug'].includes(state.currentUser?.role);
+  const canAdmin = () => ['admin', 'debug'].includes(state.currentUser?.role);
+  const isDebugger = () => state.currentUser?.role === 'debug';
   const safeText = (value) => String(value ?? '').trim();
   const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `boat-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
@@ -85,6 +88,7 @@
       ...settings,
       passwords: {
         readonly: safeText(settings?.passwords?.readonly) || DEFAULT_PASSWORDS.readonly,
+        manager: safeText(settings?.passwords?.manager) || DEFAULT_PASSWORDS.manager,
         admin: safeText(settings?.passwords?.admin) || DEFAULT_PASSWORDS.admin
       }
     };
@@ -224,6 +228,7 @@
     els.appView?.classList.remove('hidden');
     document.body.classList.add('plan-only-mode');
     state.currentUser = user || state.currentUser || { name: 'Consultation CNH', role: 'lecture' };
+    document.body.classList.toggle('debug-mode', state.currentUser.role === 'debug');
     localStorage.setItem(AUTH_KEY, JSON.stringify({ logged: true, at: Date.now(), user: state.currentUser }));
     applyRoleVisibility();
     renderAll();
@@ -233,7 +238,7 @@
   function showAuth() {
     els.authView?.classList.remove('hidden');
     els.appView?.classList.add('hidden');
-    document.body.classList.remove('plan-only-mode', 'plan-fullscreen-open');
+    document.body.classList.remove('plan-only-mode', 'plan-fullscreen-open', 'debug-mode');
     localStorage.removeItem(AUTH_KEY);
   }
 
@@ -253,8 +258,20 @@
 
     const passwords = getPasswords();
 
+    if (password === DEBUG_PASSWORD) {
+      showApp({ name: 'Debug / Super admin', role: 'debug' });
+      if (els.loginPassword) els.loginPassword.value = '';
+      return;
+    }
+
     if (password === passwords.readonly) {
       showApp({ name: 'Consultation CNH', role: 'lecture' });
+      if (els.loginPassword) els.loginPassword.value = '';
+      return;
+    }
+
+    if (password === passwords.manager) {
+      showApp({ name: 'Modification CNH', role: 'manager' });
       if (els.loginPassword) els.loginPassword.value = '';
       return;
     }
@@ -278,20 +295,29 @@
 
   function applyRoleVisibility() {
     const manage = canManage();
-    const isAdmin = state.currentUser?.role === 'admin';
+    const adminAccess = canAdmin();
+    const debugAccess = isDebugger();
 
     document.querySelectorAll('.manage-only').forEach((el) => el.classList.toggle('hidden-by-role', !manage));
-    document.querySelectorAll('.admin-only').forEach((el) => el.classList.toggle('hidden-by-role', !isAdmin));
+    document.querySelectorAll('.admin-only').forEach((el) => el.classList.toggle('hidden-by-role', !adminAccess));
+    document.querySelectorAll('.debugger-only').forEach((el) => el.classList.toggle('hidden-by-role', !debugAccess));
+
+    const roleLabels = {
+      lecture: 'Consultation uniquement',
+      manager: 'Modification sans administration',
+      admin: 'Administration + modifications',
+      debug: 'Debug / super administrateur'
+    };
 
     if (els.userDisplayName) els.userDisplayName.textContent = state.currentUser?.name || 'CNH';
-    if (els.userDisplayRole) els.userDisplayRole.textContent = isAdmin ? 'Administration + modifications' : 'Consultation uniquement';
+    if (els.userDisplayRole) els.userDisplayRole.textContent = roleLabels[state.currentUser?.role] || '—';
     updateSyncPill();
 
     if (els.modeBadge) els.modeBadge.textContent = '';
     if (els.accountCardName) els.accountCardName.textContent = state.currentUser?.name || 'CNH';
-    if (els.accountCardEmail) els.accountCardEmail.textContent = isAdmin ? 'Accès administrateur' : 'Accès consultation';
-    if (els.accountRoleChip) els.accountRoleChip.textContent = isAdmin ? 'Admin' : 'Lecture seule';
-    if (els.accountPasswordChip) els.accountPasswordChip.textContent = isAdmin ? 'Modifications autorisées' : 'Consultation';
+    if (els.accountCardEmail) els.accountCardEmail.textContent = roleLabels[state.currentUser?.role] || '—';
+    if (els.accountRoleChip) els.accountRoleChip.textContent = state.currentUser?.role === 'debug' ? 'Super admin' : adminAccess ? 'Admin' : state.currentUser?.role === 'manager' ? 'Modification' : 'Lecture seule';
+    if (els.accountPasswordChip) els.accountPasswordChip.textContent = manage ? 'Modifications autorisées' : 'Consultation';
   }
 
   function renderAll() {
@@ -878,11 +904,22 @@
     syncFromRemote(true);
   }
 
+  function closeMobileActionMenu() {
+    els.mobileActionMenu?.classList.add('hidden');
+    els.fsMenuBtn?.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleMobileActionMenu() {
+    const isHidden = els.mobileActionMenu?.classList.contains('hidden');
+    els.mobileActionMenu?.classList.toggle('hidden', !isHidden ? true : false);
+    els.fsMenuBtn?.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+  }
+
   function handleFullscreenAction(event) {
     const target = event.target;
     if (!target || !document.body.classList.contains('plan-fullscreen-open')) return;
 
-    const actionEl = target.closest?.('#fsMenuBtn, #fsRefreshBtn, #fsExportBtn, #fsImportBtn, #fsNewBoatBtn');
+    const actionEl = target.closest?.('#fsMenuBtn, #fsRefreshBtn, #fsExcelBtn, #fsExportBtn, #fsImportBtn, #fsNewBoatBtn, #fsFleetBtn, #fsAdminBtn, #fsLogoutBtn');
     if (!actionEl) return;
 
     event.preventDefault();
@@ -891,19 +928,38 @@
 
     switch (actionEl.id) {
       case 'fsMenuBtn':
-        openSidebar();
+        toggleMobileActionMenu();
         break;
       case 'fsRefreshBtn':
         doMobileRefresh();
         break;
+      case 'fsExcelBtn':
+        exportExcel();
+        closeMobileActionMenu();
+        break;
       case 'fsExportBtn':
         exportJson();
+        closeMobileActionMenu();
         break;
       case 'fsImportBtn':
         els.fsImportInput?.click();
+        closeMobileActionMenu();
         break;
       case 'fsNewBoatBtn':
         openNewBoatFromCurrentSlot();
+        closeMobileActionMenu();
+        break;
+      case 'fsFleetBtn':
+        switchTab('fleetTab');
+        closeMobileActionMenu();
+        break;
+      case 'fsAdminBtn':
+        switchTab('adminTab');
+        closeMobileActionMenu();
+        break;
+      case 'fsLogoutBtn':
+        logout();
+        closeMobileActionMenu();
         break;
     }
   }
@@ -928,6 +984,7 @@
     els.zoneFocusGridBtn?.addEventListener('click', () => setPlanView('grid'));
     els.refreshButton?.addEventListener('click', () => syncFromRemote(true));
     els.fsRefreshBtn?.addEventListener('click', doMobileRefresh);
+    els.fsExcelBtn?.addEventListener('click', exportExcel);
     els.exportButton?.addEventListener('click', exportJson);
     els.excelExportButton?.addEventListener('click', exportExcel);
     els.mobileExcelButton?.addEventListener('click', exportExcel);
@@ -940,12 +997,15 @@
     els.fsMenuBtn?.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      openSidebar();
+      toggleMobileActionMenu();
     });
+    els.fsFleetBtn?.addEventListener('click', () => switchTab('fleetTab'));
+    els.fsAdminBtn?.addEventListener('click', () => switchTab('adminTab'));
+    els.fsLogoutBtn?.addEventListener('click', logout);
 
     // Délégation très robuste pour mobile : certains navigateurs interceptent le clic
     // pendant le scroll/pan du plan. On capte pointerup/touchend/click avant le plan.
-    ['pointerup', 'touchend', 'click'].forEach((eventName) => {
+    ['click'].forEach((eventName) => {
       document.addEventListener(eventName, handleFullscreenAction, true);
     });
     els.floatingAddButton?.addEventListener('click', () => openBoatModal(null, state.selectedSlot || allSlots().find((slot) => !boatForSlot(slot)) || 1));
@@ -962,24 +1022,26 @@
     els.sidebarClose?.addEventListener('click', closeSidebar);
     els.sidebarBackdrop?.addEventListener('click', closeSidebar);
     els.openPasswordModalButton?.addEventListener('click', () => {
-      if (state.currentUser?.role !== 'admin') return toast('Accès administrateur requis.', 'error');
+      if (!canAdmin()) return toast('Accès administrateur requis.', 'error');
       const passwords = getPasswords();
       if (els.readonlyPasswordInput) els.readonlyPasswordInput.value = passwords.readonly;
+      if (els.managerPasswordInput) els.managerPasswordInput.value = passwords.manager;
       if (els.adminPasswordInput) els.adminPasswordInput.value = passwords.admin;
       els.passwordModal?.classList.remove('hidden');
       els.passwordModal?.setAttribute('aria-hidden', 'false');
     });
     els.passwordForm?.addEventListener('submit', (event) => {
       event.preventDefault();
-      if (state.currentUser?.role !== 'admin') return toast('Accès administrateur requis.', 'error');
+      if (!canAdmin()) return toast('Accès administrateur requis.', 'error');
       const readonlyPassword = safeText(els.readonlyPasswordInput?.value);
+      const managerPassword = safeText(els.managerPasswordInput?.value);
       const adminPassword = safeText(els.adminPasswordInput?.value);
-      if (readonlyPassword.length < 4 || adminPassword.length < 4) return toast('Chaque mot de passe doit contenir au moins 4 caractères.', 'error');
-      if (readonlyPassword === adminPassword) return toast('Les 2 mots de passe doivent être différents.', 'error');
-      state.settings = normalizeSettings({ ...state.settings, passwords: { readonly: readonlyPassword, admin: adminPassword } });
+      if (readonlyPassword.length < 3 || managerPassword.length < 3 || adminPassword.length < 4) return toast('Les mots de passe sont trop courts.', 'error');
+      if (new Set([readonlyPassword, managerPassword, adminPassword, DEBUG_PASSWORD]).size < 4) return toast('Les mots de passe doivent être différents du debug et entre eux.', 'error');
+      state.settings = normalizeSettings({ ...state.settings, passwords: { readonly: readonlyPassword, manager: managerPassword, admin: adminPassword } });
       saveData(true);
       closeModal('passwordModal');
-      toast('Les 2 mots de passe ont été mis à jour.', 'success');
+      toast('Les mots de passe ont été mis à jour.', 'success');
     });
     document.querySelectorAll('[data-close-modal]').forEach((btn) => btn.addEventListener('click', () => closeModal(btn.dataset.closeModal)));
     document.querySelectorAll('[data-tab-target]').forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tabTarget)));

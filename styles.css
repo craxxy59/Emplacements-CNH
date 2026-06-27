@@ -3448,3 +3448,110 @@ body.plan-only-mode #zonesBoard {
     transform: translateY(1px);
   }
 }
+
+/* Nouvelle version mobile : menu hamburger avec actions, et accès debug complet. */
+@media (max-width: 760px) {
+  body.plan-only-mode .plan-fullscreen-head {
+    display: flex !important;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 260 !important;
+    min-height: 54px;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 10px 8px !important;
+    align-items: center;
+    pointer-events: auto !important;
+  }
+
+  body.plan-only-mode .plan-fullscreen-head > div:first-child {
+    display: none !important;
+  }
+
+  body.plan-only-mode .plan-fullscreen-actions {
+    display: flex !important;
+    position: relative !important;
+    z-index: 261 !important;
+    overflow: visible !important;
+    flex: 0 0 auto;
+    padding: 0 !important;
+    pointer-events: auto !important;
+  }
+
+  body.plan-only-mode .fullscreen-hamburger,
+  body.plan-only-mode #fsMenuBtn {
+    display: inline-flex !important;
+    width: 44px;
+    height: 40px;
+    padding: 9px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.24);
+    background: rgba(13,39,64,0.88);
+    color: #fff;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    box-shadow: 0 10px 22px rgba(0,0,0,0.22);
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+  }
+
+  body.plan-only-mode .fullscreen-hamburger span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  body.plan-only-mode .mobile-action-menu {
+    position: fixed;
+    top: calc(58px + env(safe-area-inset-top, 0px));
+    left: 10px;
+    z-index: 280;
+    display: grid;
+    gap: 8px;
+    width: min(260px, calc(100vw - 20px));
+    padding: 10px;
+    border-radius: 18px;
+    background: rgba(8,31,51,0.96);
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: 0 18px 42px rgba(0,0,0,0.34);
+    pointer-events: auto !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu.hidden {
+    display: none !important;
+  }
+
+  body.plan-only-mode .mobile-action-menu > button,
+  body.plan-only-mode .mobile-action-menu > label {
+    width: 100%;
+    justify-content: center;
+    min-height: 42px;
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+  }
+
+  body.plan-only-mode .mobile-excel-button {
+    display: none !important;
+  }
+
+  body.plan-only-mode .plan-fullscreen-body {
+    padding-top: calc(54px + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  body.plan-only-mode.debug-mode .workspace-header,
+  body.plan-only-mode.debug-mode .bottom-nav {
+    display: grid !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+}
+
+@media (max-width: 760px) {
+  body.plan-only-mode .mobile-action-menu > button:not(.hidden-by-role),
+  body.plan-only-mode .mobile-action-menu > label:not(.hidden-by-role) {
+    display: inline-flex !important;
+  }
+}
