@@ -12,8 +12,6 @@
       content="Application PWA professionnelle de gestion des emplacements bateaux du Club Nautique d'Hardelot Plage."
     />
     <title>CNH • Marina Manager</title>
-    <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -22,7 +20,7 @@
     <div id="authView" class="auth-layout">
       <section class="auth-hero">
         <div class="brand-lockup">
-          <img src="assets/logo-cnh-real.jpg" alt="CNH" class="brand-logo" />
+          <div class="brand-logo brand-logo-fallback" aria-label="CNH">CNH</div>
           <div>
             <p class="eyebrow">Club Nautique d’Hardelot Plage</p>
             <h1>Gestion premium des bateaux & emplacements</h1>
@@ -43,7 +41,7 @@
             <div>
               <span class="mini-label light-label">Contact</span>
               <strong><a href="tel:0391214432">03 91 21 44 32</a></strong>
-              <div><a href="/cdn-cgi/l/email-protection#1b7874756f7a786f5b7875737a697f7e77746f357d69"><span class="__cf_email__" data-cfemail="2e4d41405a4f4d5a6e4d40464f5c4a4b42415a00485c">[email&#160;protected]</span></a></div>
+              <div><a href="mailto:contact@cnhardelot.fr">contact@cnhardelot.fr</a></div>
             </div>
             <div>
               <span class="mini-label light-label">Club</span>
@@ -111,7 +109,7 @@
       <aside id="sidebar" class="sidebar" aria-label="Menu principal">
         <div class="sidebar-head">
           <div class="brand-mini">
-            <img src="assets/logo-cnh-real.jpg" alt="CNH" class="sidebar-logo" />
+            <div class="sidebar-logo sidebar-logo-fallback" aria-label="CNH">CNH</div>
             <div>
               <p class="eyebrow">CNH</p>
               <strong>Marina Manager</strong>
@@ -179,7 +177,7 @@
           </div>
           <div class="quickbar-item">
             <span class="mini-label">Email</span>
-            <a href="/cdn-cgi/l/email-protection#47242829332624330724292f263523222b2833692135"><span class="__cf_email__" data-cfemail="97f4f8f9e3f6f4e3d7f4f9fff6e5f3f2fbf8e3b9f1e5">[email&#160;protected]</span></a>
+            <a href="mailto:contact@cnhardelot.fr">contact@cnhardelot.fr</a>
             <small>Support / infos membres</small>
           </div>
           <div class="quickbar-item links">
@@ -408,7 +406,7 @@
 
           <div class="modal-layout">
             <section class="photo-side">
-              <img id="boatPhotoPreview" class="boat-photo-preview" src="assets/placeholder-boat.svg" alt="Aperçu bateau" />
+              <img id="boatPhotoPreview" class="boat-photo-preview" src="assets/placeholder-boat.svg" onerror="this.onerror=null;this.src=window.CNH_PLACEHOLDER_BOAT || '';" alt="Aperçu bateau" />
               <div class="photo-buttons manage-only">
                 <label for="boatPhotoInput" class="secondary-button clickable">Ajouter une photo</label>
                 <input id="boatPhotoInput" type="file" accept="image/*" hidden />
@@ -559,7 +557,7 @@
       </div>
     </div>
 
-    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="config.js"></script>
+    <script src="config.js"></script>
     <script src="app.js"></script>
-  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a124216faa25c6c9',t:'MTc4MjU1OTk0MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+  </body>
 </html>

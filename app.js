@@ -4,6 +4,7 @@
   const STORAGE_KEY = 'cnh-marina-manager-data-v5';
   const AUTH_KEY = 'cnh-marina-manager-auth-v5';
   const DEFAULT_PASSWORD = 'CNH2026';
+  const SYNC_ENDPOINT = '/.netlify/functions/data';
   const PLAN_IMAGE = 'plan-reference.png';
   const PLACEHOLDER_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="400" height="260" viewBox="0 0 400 260">
@@ -65,7 +66,7 @@
       'boatName', 'licenceNumber', 'registrationNumber', 'boatType', 'boatStatus', 'ownerName', 'ownerPhone', 'ownerEmail', 'emergencyContact',
       'zoneSelect', 'slotSelect', 'lengthInput', 'widthInput', 'equipmentInput', 'notesInput', 'duplicateBoatButton', 'deleteBoatButton',
       'passwordModal', 'passwordForm', 'newPassword', 'confirmPassword', 'openPasswordModalButton', 'accountCardName', 'accountCardEmail', 'accountRoleChip', 'accountPasswordChip',
-      'workspaceTitle', 'workspaceSubtitle', 'sidebar', 'sidebarBackdrop', 'sidebarToggle', 'sidebarClose', 'cardModeButton', 'compactModeButton',
+      'workspaceTitle', 'workspaceSubtitle', 'fsMenuBtn', 'fsRefreshBtn', 'fsExportBtn', 'fsImportBtn', 'fsImportInput', 'fsNewBoatBtn', 'sidebar', 'sidebarBackdrop', 'sidebarToggle', 'sidebarClose', 'cardModeButton', 'compactModeButton',
       'profilesNotice', 'profilesList'
     ].forEach((id) => { els[id] = $(id); });
   }
@@ -77,13 +78,40 @@
   const safeText = (value) => String(value ?? '').trim();
   const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `boat-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
+  function isLocalPreview() {
+    return ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+  }
+
+  async function fetchRemoteData() {
+    try {
+      const res = await fetch(SYNC_ENDPOINT, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      state.remoteMode = true;
+      return data;
+    } catch (error) {
+      state.remoteMode = false;
+      return null;
+    }
+  }
+
   async function loadData() {
     let loaded = null;
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) loaded = JSON.parse(stored);
-    } catch (_) {}
 
+    // Sur Netlify : priorité à la donnée partagée Netlify Blobs.
+    if (!isLocalPreview()) {
+      loaded = await fetchRemoteData();
+    }
+
+    // Secours local si Netlify Functions/Blobs n'est pas disponible.
+    if (!loaded) {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) loaded = JSON.parse(stored);
+      } catch (_) {}
+    }
+
+    // Donnée initiale du dépôt.
     if (!loaded) {
       try {
         const res = await fetch('data.json', { cache: 'no-store' });
@@ -95,15 +123,71 @@
 
     state.boats = Array.isArray(loaded?.boats) ? loaded.boats : [];
     state.profiles = Array.isArray(loaded?.profiles) ? loaded.profiles : [];
-    saveData(false);
+    saveLocalData();
+  }
+
+  function saveLocalData() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ boats: state.boats, profiles: state.profiles }, null, 2));
+    } catch (error) {
+      toast('Impossible d’enregistrer localement : stockage plein ou désactivé.', 'error');
+    }
+  }
+
+  async function pushRemoteData(showToast = false) {
+    if (isLocalPreview()) return false;
+    try {
+      const res = await fetch(SYNC_ENDPOINT, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ boats: state.boats, profiles: state.profiles })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      state.remoteMode = true;
+      if (showToast) toast('Données synchronisées entre les appareils.', 'success');
+      updateSyncPill();
+      return true;
+    } catch (error) {
+      state.remoteMode = false;
+      if (showToast) toast('Sauvegarde locale OK, mais synchronisation Netlify indisponible.', 'error');
+      updateSyncPill();
+      return false;
+    }
   }
 
   function saveData(showToast = false) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ boats: state.boats, profiles: state.profiles }, null, 2));
-      if (showToast) toast('Données enregistrées localement.', 'success');
-    } catch (error) {
-      toast('Impossible d’enregistrer localement : stockage plein ou désactivé.', 'error');
+    saveLocalData();
+    if (!isLocalPreview()) {
+      pushRemoteData(showToast);
+    } else if (showToast) {
+      toast('Données enregistrées localement.', 'success');
+    }
+  }
+
+  async function syncFromRemote(showToast = true) {
+    const data = await fetchRemoteData();
+    if (!data) {
+      if (showToast) toast('Synchronisation indisponible, données locales conservées.', 'error');
+      updateSyncPill();
+      return false;
+    }
+    state.boats = Array.isArray(data.boats) ? data.boats : [];
+    state.profiles = Array.isArray(data.profiles) ? data.profiles : [];
+    saveLocalData();
+    renderAll();
+    if (showToast) toast('Données récupérées depuis Netlify.', 'success');
+    updateSyncPill();
+    return true;
+  }
+
+  function updateSyncPill() {
+    if (!els.syncPill) return;
+    if (state.remoteMode) {
+      els.syncPill.textContent = 'Synchronisé';
+      els.syncPill.className = 'sync-pill online';
+    } else {
+      els.syncPill.textContent = isLocalPreview() ? 'Local' : 'Hors ligne';
+      els.syncPill.className = 'sync-pill demo';
     }
   }
 
@@ -164,10 +248,7 @@
     document.querySelectorAll('.admin-only').forEach((el) => el.classList.toggle('hidden-by-role', false));
     if (els.userDisplayName) els.userDisplayName.textContent = state.currentUser?.name || 'CNH';
     if (els.userDisplayRole) els.userDisplayRole.textContent = 'Administrateur local';
-    if (els.syncPill) {
-      els.syncPill.textContent = 'Local';
-      els.syncPill.className = 'sync-pill demo';
-    }
+    updateSyncPill();
     if (els.modeBadge) els.modeBadge.textContent = 'Mode local compatible Live Server et Netlify.';
     if (els.accountCardName) els.accountCardName.textContent = 'CNH';
     if (els.accountCardEmail) els.accountCardEmail.textContent = 'Compte local';
@@ -635,7 +716,14 @@
     document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === tabId));
     document.querySelectorAll('[data-tab-target]').forEach((btn) => btn.classList.toggle('active', btn.dataset.tabTarget === tabId));
     if (els.workspaceTitle) els.workspaceTitle.textContent = tabId === 'fleetTab' ? 'Bateaux' : tabId === 'adminTab' ? 'Administration' : 'Plan aérien';
-    if (tabId === 'dashboardTab') requestAnimationFrame(ensureAerialPlanVisible);
+
+    // Depuis le menu hamburger mobile, les onglets PC doivent être réellement accessibles.
+    // Donc on ferme le plein écran pour Bateaux/Admin, et on le rouvre seulement pour le Plan.
+    if (tabId === 'dashboardTab') {
+      requestAnimationFrame(ensureAerialPlanVisible);
+    } else {
+      closePlanFullscreen();
+    }
     closeSidebar();
   }
 
@@ -649,6 +737,10 @@
     els.planFullscreen.setAttribute('aria-hidden', 'false');
     document.body.classList.add('plan-fullscreen-open');
     updatePlanSize();
+    requestAnimationFrame(() => {
+      els.planFullscreenBody.scrollLeft = 0;
+      els.planFullscreenBody.scrollTop = 0;
+    });
   }
 
   function closePlanFullscreen() {
@@ -674,6 +766,44 @@
     document.body.classList.remove('sidebar-open');
   }
 
+  function openNewBoatFromCurrentSlot() {
+    openBoatModal(null, state.selectedSlot || allSlots().find((slot) => !boatForSlot(slot)) || 1);
+  }
+
+  function doMobileRefresh() {
+    syncFromRemote(true);
+  }
+
+  function handleFullscreenAction(event) {
+    const target = event.target;
+    if (!target || !document.body.classList.contains('plan-fullscreen-open')) return;
+
+    const actionEl = target.closest?.('#fsMenuBtn, #fsRefreshBtn, #fsExportBtn, #fsImportBtn, #fsNewBoatBtn');
+    if (!actionEl) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+
+    switch (actionEl.id) {
+      case 'fsMenuBtn':
+        openSidebar();
+        break;
+      case 'fsRefreshBtn':
+        doMobileRefresh();
+        break;
+      case 'fsExportBtn':
+        exportJson();
+        break;
+      case 'fsImportBtn':
+        els.fsImportInput?.click();
+        break;
+      case 'fsNewBoatBtn':
+        openNewBoatFromCurrentSlot();
+        break;
+    }
+  }
+
   function renderProfiles() {
     if (els.profilesNotice) els.profilesNotice.textContent = 'Gestion locale : les fiches et exports/imports restent disponibles.';
     if (els.profilesList) els.profilesList.innerHTML = '<div class="mini-card"><strong>CNH</strong><span>Administrateur local</span></div>';
@@ -686,18 +816,32 @@
     els.planGridViewBtn?.addEventListener('click', () => setPlanView('grid'));
     els.openPlanFullscreenBtn?.addEventListener('click', openPlanFullscreen);
     els.closePlanFullscreenBtn?.addEventListener('click', () => {
+      // Sur mobile on arrive bien directement sur le plan, mais on peut le réduire
+      // pour récupérer les mêmes fonctions que sur PC.
       closePlanFullscreen();
-      if (window.matchMedia('(max-width: 760px)').matches) {
-        // En mobile, l'utilisateur doit toujours arriver directement sur le plan aérien.
-        setTimeout(openPlanFullscreen, 120);
-      }
     });
     els.zoneFocusAllBtn?.addEventListener('click', clearZoneFocus);
     els.zoneFocusGridBtn?.addEventListener('click', () => setPlanView('grid'));
-    els.refreshButton?.addEventListener('click', () => { renderAll(); toast('Vue actualisée.', 'success'); });
+    els.refreshButton?.addEventListener('click', () => syncFromRemote(true));
+    els.fsRefreshBtn?.addEventListener('click', doMobileRefresh);
     els.exportButton?.addEventListener('click', exportJson);
+    els.fsExportBtn?.addEventListener('click', exportJson);
     els.importInput?.addEventListener('change', importJson);
-    els.openCreateBoatButton?.addEventListener('click', () => openBoatModal(null, state.selectedSlot || allSlots().find((slot) => !boatForSlot(slot)) || 1));
+    els.fsImportInput?.addEventListener('change', importJson);
+    els.fsImportBtn?.addEventListener('click', () => els.fsImportInput?.click());
+    els.openCreateBoatButton?.addEventListener('click', openNewBoatFromCurrentSlot);
+    els.fsNewBoatBtn?.addEventListener('click', openNewBoatFromCurrentSlot);
+    els.fsMenuBtn?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openSidebar();
+    });
+
+    // Délégation très robuste pour mobile : certains navigateurs interceptent le clic
+    // pendant le scroll/pan du plan. On capte pointerup/touchend/click avant le plan.
+    ['pointerup', 'touchend', 'click'].forEach((eventName) => {
+      document.addEventListener(eventName, handleFullscreenAction, true);
+    });
     els.floatingAddButton?.addEventListener('click', () => openBoatModal(null, state.selectedSlot || allSlots().find((slot) => !boatForSlot(slot)) || 1));
     els.searchInput?.addEventListener('input', renderFleet);
     els.zoneFilter?.addEventListener('change', renderFleet);
