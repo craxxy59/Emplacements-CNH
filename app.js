@@ -877,6 +877,16 @@
     });
   }
 
+
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {
+        // La PWA reste utilisable même si le service worker ne s'installe pas.
+      });
+    });
+  }
+
   async function init() {
     cacheElements();
     await loadData();
@@ -885,6 +895,7 @@
     renderAll();
     if (localStorage.getItem(AUTH_KEY)) showApp();
     else showAuth();
+    registerServiceWorker();
   }
 
   document.addEventListener('DOMContentLoaded', init);

@@ -1,9 +1,27 @@
 {
   "name": "CNH Emplacements",
   "short_name": "CNH",
-  "start_url": ".",
+  "description": "Gestion des emplacements bateaux du Club Nautique d’Hardelot.",
+  "lang": "fr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0d2740",
   "theme_color": "#0d2740",
-  "icons": []
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
