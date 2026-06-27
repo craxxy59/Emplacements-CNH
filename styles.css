@@ -3568,3 +3568,57 @@ body.plan-only-mode #zonesBoard {
     z-index: 421 !important;
   }
 }
+
+/* Affichage des informations par-dessus la photo du bateau sur le plan. */
+.plan-slot.has-photo .plan-slot-name,
+.plan-slot.has-photo .plan-slot-owner {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  z-index: 3;
+  display: block;
+  max-width: calc(100% - 4px);
+  padding: 1px 3px;
+  border-radius: 3px;
+  color: #fff !important;
+  background: rgba(8, 31, 51, 0.72);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.plan-slot.has-photo .plan-slot-name {
+  bottom: 14px;
+  font-size: clamp(0.44rem, 0.9vw, 0.58rem);
+  font-weight: 900;
+}
+
+.plan-slot.has-photo .plan-slot-owner {
+  bottom: 1px;
+  font-size: clamp(0.40rem, 0.82vw, 0.52rem);
+  font-weight: 800;
+  background: rgba(13, 95, 143, 0.78);
+}
+
+.plan-slot.has-photo .plan-slot-photo {
+  z-index: 1;
+}
+
+.plan-slot.has-photo .plan-slot-num {
+  z-index: 4;
+}
+
+@media (max-width: 760px) {
+  .plan-slot.has-photo .plan-slot-name {
+    bottom: 13px;
+    font-size: 0.46rem;
+  }
+
+  .plan-slot.has-photo .plan-slot-owner {
+    font-size: 0.42rem;
+  }
+}
