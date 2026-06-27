@@ -4120,3 +4120,260 @@ body.plan-only-mode #zonesBoard {
     border-radius: 16px;
   }
 }
+
+/* Interface mobile dédiée aux onglets Bateaux / Administration : pas d'interface PC, pas de mauvais hamburger. */
+.mobile-section-bar {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace {
+    padding: 0 0 calc(18px + env(safe-area-inset-bottom, 0px)) !important;
+    gap: 0 !important;
+    background: linear-gradient(180deg, #f7fbff 0%, #edf3f8 100%);
+  }
+
+  /* On supprime le hamburger PC/sidebar sur les pages mobiles internes. */
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header .sidebar-toggle {
+    display: none !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header {
+    display: block !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 120 !important;
+    margin: 0 !important;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 10px !important;
+    background: linear-gradient(135deg, #071826, #0d2740) !important;
+    color: #fff;
+    border: 0 !important;
+    border-radius: 0 0 22px 22px;
+    box-shadow: 0 14px 34px rgba(7,24,38,0.22) !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header-main {
+    display: block !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header-main .eyebrow,
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header-main .subtle-text {
+    display: none !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header h2 {
+    color: #fff;
+    margin: 0;
+    font-size: 1.22rem;
+    font-weight: 950;
+    letter-spacing: -0.02em;
+  }
+
+  /* Les actions PC disparaissent : elles sont dans le menu du plan ou dans la barre mobile. */
+  body.plan-only-mode:not(.plan-fullscreen-open) .workspace-header .header-actions {
+    display: none !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .mobile-section-bar {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+    position: sticky;
+    top: calc(50px + env(safe-area-inset-top, 0px));
+    z-index: 115;
+    margin: 0;
+    padding: 10px 10px 8px;
+    background: rgba(247,251,255,0.96);
+    border-bottom: 1px solid rgba(10,37,62,0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .mobile-section-button {
+    min-height: 42px;
+    border-radius: 14px;
+    padding: 8px 6px;
+    font-size: 0.78rem;
+    font-weight: 950;
+    color: #0d2740;
+    background: #fff;
+    border: 1px solid rgba(13,95,143,0.12);
+    box-shadow: 0 8px 18px rgba(8,31,51,0.07);
+    white-space: nowrap;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .mobile-section-button.active {
+    color: #fff;
+    background: linear-gradient(135deg, #0d5f8f, #3ea0d0);
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .mobile-section-button.danger {
+    color: #fff;
+    background: linear-gradient(135deg, #8f2f2f, #c64a4a);
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) main.workspace > .tab-panel,
+  body.plan-only-mode:not(.plan-fullscreen-open) .tab-panel.active {
+    padding: 12px !important;
+  }
+
+  /* Bateaux : vraie interface téléphone */
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab .panel-surface {
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab .fleet-head {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin: 0 0 12px !important;
+    padding: 14px;
+    border-radius: 22px;
+    background: #fff;
+    border: 1px solid rgba(10,37,62,0.08);
+    box-shadow: 0 10px 24px rgba(8,31,51,0.08);
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab .fleet-head h3 {
+    margin: 0;
+    font-size: 1.15rem;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab .toolbar-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 0 12px !important;
+    background: transparent !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab .toolbar-grid .grow {
+    grid-column: 1 / -1;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab .field-group label {
+    font-size: 0.75rem;
+    margin-left: 4px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab input,
+  body.plan-only-mode:not(.plan-fullscreen-open) #fleetTab select {
+    min-height: 46px;
+    border-radius: 15px;
+    font-size: 16px;
+    background: #fff;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .mobile-swipe-help {
+    display: none !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #boatGrid {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card,
+  body.plan-only-mode:not(.plan-fullscreen-open) .compact-boat-card {
+    border-radius: 22px !important;
+    padding: 12px !important;
+    background: #fff !important;
+    border: 1px solid rgba(10,37,62,0.08) !important;
+    box-shadow: 0 12px 26px rgba(8,31,51,0.08) !important;
+    overflow: hidden;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card-top {
+    display: grid !important;
+    grid-template-columns: 78px 1fr;
+    gap: 12px;
+    align-items: center;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card-photo {
+    width: 78px !important;
+    height: 78px !important;
+    border-radius: 18px !important;
+    object-fit: cover;
+    box-shadow: inset 0 0 0 1px rgba(10,37,62,0.08);
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card h4 {
+    font-size: 1.05rem;
+    line-height: 1.15;
+    margin: 6px 0 4px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card-meta {
+    font-size: 0.84rem;
+    line-height: 1.3;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card .card-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) .boat-card .card-actions button {
+    min-height: 46px;
+    border-radius: 15px;
+  }
+
+  /* Administration : vraie interface téléphone */
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .admin-grid {
+    grid-template-columns: 1fr !important;
+    padding: 0 !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .panel-surface {
+    padding: 14px !important;
+    border-radius: 24px !important;
+    background: #fff !important;
+    box-shadow: 0 12px 28px rgba(8,31,51,0.09) !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .panel-head {
+    margin-bottom: 12px !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .panel-head h3 {
+    margin: 0;
+    font-size: 1.18rem !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .mini-card.large-card {
+    padding: 14px !important;
+    border-radius: 20px !important;
+    background: linear-gradient(180deg, #f8fbff, #eef6fb) !important;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .mini-card.large-card strong {
+    font-size: 1.12rem;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .chip-row {
+    gap: 7px;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #adminTab .chip {
+    padding: 8px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+  }
+
+  body.plan-only-mode:not(.plan-fullscreen-open) #openPasswordModalButton {
+    width: 100%;
+    min-height: 54px;
+    border-radius: 17px;
+    font-size: 0.96rem;
+    font-weight: 950;
+  }
+}

@@ -58,7 +58,7 @@
 
   function cacheElements() {
     [
-      'authView', 'appView', 'loginForm', 'loginPassword', 'modeBadge', 'logoutButton', 'userDisplayName', 'userDisplayRole', 'syncPill',
+      'authView', 'appView', 'loginForm', 'loginPassword', 'modeBadge', 'logoutButton', 'mobileLogoutButton', 'userDisplayName', 'userDisplayRole', 'syncPill',
       'sitePlanSection', 'sitePlanMap', 'zonesBoard', 'zoneFocusBar', 'zoneFocusTitle', 'zoneFocusMeta', 'zoneFocusAllBtn', 'zoneFocusGridBtn',
       'planMapViewBtn', 'planGridViewBtn', 'openPlanFullscreenBtn', 'planFullscreen', 'planFullscreenBody', 'closePlanFullscreenBtn',
       'statTotalSpots', 'statOccupied', 'statFree', 'statComplete', 'sidebarZoneStats', 'toastContainer',
@@ -1120,6 +1120,7 @@
   function bindEvents() {
     els.loginForm?.addEventListener('submit', handleLogin);
     els.logoutButton?.addEventListener('click', logout);
+    els.mobileLogoutButton?.addEventListener('click', logout);
     els.planMapViewBtn?.addEventListener('click', () => setPlanView('map'));
     els.planGridViewBtn?.addEventListener('click', () => setPlanView('grid'));
     els.openPlanFullscreenBtn?.addEventListener('click', openPlanFullscreen);
