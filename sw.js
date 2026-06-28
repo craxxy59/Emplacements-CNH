@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cnh-pwa-v1.0.19';
+const CACHE_NAME = 'cnh-pwa-v1.0.20';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

@@ -175,10 +175,12 @@
   async function pushRemoteData(showToast = false) {
     if (isLocalPreview()) return false;
     try {
+      await compactStatePhotosIfNeeded();
+      const payload = JSON.stringify({ boats: state.boats, profiles: state.profiles });
       const res = await fetch(SYNC_ENDPOINT, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ boats: state.boats, profiles: state.profiles })
+        body: payload
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) throw new Error(data.message || data.error || `HTTP ${res.status}`);
@@ -188,19 +190,20 @@
       return true;
     } catch (error) {
       state.remoteMode = false;
-      if (showToast) toast(`Sauvegarde locale OK, mais synchro Vercel indisponible : ${error.message}`, 'error');
+      const hostLabel = SYNC_ENDPOINT.includes('/.netlify/functions') ? 'Netlify' : 'Vercel';
+      if (showToast) toast(`Sauvegarde locale OK, mais synchro ${hostLabel} indisponible : ${error.message}`, 'error');
       updateSyncPill();
       return false;
     }
   }
 
-  function saveData(showToast = false) {
+  async function saveData(showToast = false) {
     saveLocalData();
     if (!isLocalPreview()) {
-      pushRemoteData(showToast);
-    } else if (showToast) {
-      toast('Données enregistrées localement.', 'success');
+      return pushRemoteData(showToast);
     }
+    if (showToast) toast('Données enregistrées localement.', 'success');
+    return true;
   }
 
   async function syncFromRemote(showToast = true) {
@@ -733,28 +736,73 @@
     renderAll();
   }
 
-  function resizeImageFile(file, maxWidth = 900, quality = 0.72) {
+  function resizeImageDataUrl(dataUrl, maxWidth = 520, quality = 0.55) {
+    return new Promise((resolve, reject) => {
+      if (!dataUrl || !String(dataUrl).startsWith('data:image')) return resolve(dataUrl || '');
+      const img = new Image();
+      img.onerror = () => reject(new Error('Photo invalide'));
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / Math.max(img.width, img.height));
+        const width = Math.max(1, Math.round(img.width * scale));
+        const height = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = dataUrl;
+    });
+  }
+
+  function resizeImageFile(file, maxWidth = 520, quality = 0.55) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = () => reject(new Error('Lecture photo impossible'));
-      reader.onload = () => {
-        const img = new Image();
-        img.onerror = () => reject(new Error('Photo invalide'));
-        img.onload = () => {
-          const scale = Math.min(1, maxWidth / Math.max(img.width, img.height));
-          const width = Math.max(1, Math.round(img.width * scale));
-          const height = Math.max(1, Math.round(img.height * scale));
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.src = reader.result;
+      reader.onload = async () => {
+        try {
+          resolve(await resizeImageDataUrl(reader.result, maxWidth, quality));
+        } catch (error) {
+          reject(error);
+        }
       };
       reader.readAsDataURL(file);
     });
+  }
+
+  async function compressBoatPhotos(boats, force = false) {
+    let changed = false;
+    const result = [];
+    for (const boat of boats || []) {
+      const copy = { ...boat };
+      const photo = String(copy.photoData || '');
+      if (photo.startsWith('data:image') && (force || photo.length > 90000)) {
+        try {
+          const compressed = await resizeImageDataUrl(photo, 520, 0.55);
+          if (compressed && compressed.length < photo.length) {
+            copy.photoData = compressed;
+            changed = true;
+          }
+        } catch (_) {}
+      }
+      result.push(copy);
+    }
+    return { boats: result, changed };
+  }
+
+  async function compactStatePhotosIfNeeded() {
+    const payloadSize = JSON.stringify({ boats: state.boats, profiles: state.profiles }).length;
+    const isNetlifyApi = SYNC_ENDPOINT.includes('/.netlify/functions');
+    if (!isNetlifyApi && payloadSize < 9000000) return false;
+    if (payloadSize < 4500000 && !state.boats.some((b) => String(b.photoData || '').length > 250000)) return false;
+    const result = await compressBoatPhotos(state.boats, isNetlifyApi || payloadSize > 4500000);
+    if (result.changed) {
+      state.boats = result.boats;
+      saveLocalData();
+      renderAll();
+    }
+    return result.changed;
   }
 
   async function handlePhoto(event) {
@@ -1010,8 +1058,10 @@
         const data = JSON.parse(reader.result);
         state.boats = Array.isArray(data.boats) ? data.boats : [];
         state.profiles = Array.isArray(data.profiles) ? data.profiles : [];
-        saveData(true);
-        renderAll();
+        compactStatePhotosIfNeeded().finally(() => {
+          saveData(true);
+          renderAll();
+        });
       } catch (_) {
         toast('Fichier JSON invalide.', 'error');
       }
