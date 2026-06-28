@@ -3,8 +3,9 @@
 
   const STORAGE_KEY = 'cnh-marina-manager-data-v5';
   const AUTH_KEY = 'cnh-marina-manager-auth-v5';
-  const SYNC_ENDPOINT = '/.netlify/functions/data';
-  const AUTH_ENDPOINT = '/.netlify/functions/auth';
+  const API_PREFIX = window.CNH_CONFIG?.API_PREFIX || (location.hostname.includes('vercel.app') ? '/api' : '/.netlify/functions');
+  const SYNC_ENDPOINT = `${API_PREFIX}/data`;
+  const AUTH_ENDPOINT = `${API_PREFIX}/auth`;
   const PLAN_IMAGE = 'plan-reference.png';
   const PLACEHOLDER_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="400" height="260" viewBox="0 0 400 260">
@@ -51,7 +52,8 @@
     currentUser: null,
     planView: 'map',
     editingId: null,
-    remoteMode: false
+    remoteMode: false,
+    localStorageWarned: false
   };
 
   const els = {};
@@ -130,11 +132,43 @@
     saveLocalData();
   }
 
+  function makeLightBoat(boat) {
+    if (!boat) return boat;
+    const copy = { ...boat };
+    if (copy.photoData && String(copy.photoData).length > 1200) {
+      copy.photoData = '';
+      copy.photoLocalOnly = true;
+    }
+    return copy;
+  }
+
   function saveLocalData() {
+    const fullData = { boats: state.boats, profiles: state.profiles };
+    const lightData = { boats: state.boats.map(makeLightBoat), profiles: state.profiles };
+
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ boats: state.boats, profiles: state.profiles }, null, 2));
+      const fullJson = JSON.stringify(fullData);
+      // Les photos restent dans l'état de l'app et sont envoyées à Vercel.
+      // En local, si le paquet devient trop gros, on garde une copie légère sans photos.
+      const jsonForLocal = fullJson.length > 2500000 ? JSON.stringify(lightData) : fullJson;
+      localStorage.setItem(STORAGE_KEY, jsonForLocal);
+      state.localStorageWarned = false;
+      return true;
     } catch (error) {
-      toast('Impossible d’enregistrer localement : stockage plein ou désactivé.', 'error');
+      try {
+        // Certains navigateurs refusent d'écraser une grosse ancienne sauvegarde.
+        // On supprime l'ancienne copie locale puis on écrit une sauvegarde légère.
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(lightData));
+        state.localStorageWarned = false;
+        return true;
+      } catch (_) {
+        if (!state.localStorageWarned) {
+          toast('Mémoire locale pleine : données envoyées à Vercel, vide le cache du site si ce message revient.', 'error');
+          state.localStorageWarned = true;
+        }
+        return false;
+      }
     }
   }
 
@@ -146,14 +180,15 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ boats: state.boats, profiles: state.profiles })
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.message || data.error || `HTTP ${res.status}`);
       state.remoteMode = true;
       if (showToast) toast('Données synchronisées entre les appareils.', 'success');
       updateSyncPill();
       return true;
     } catch (error) {
       state.remoteMode = false;
-      if (showToast) toast('Sauvegarde locale OK, mais synchronisation Netlify indisponible.', 'error');
+      if (showToast) toast(`Sauvegarde locale OK, mais synchro Vercel indisponible : ${error.message}`, 'error');
       updateSyncPill();
       return false;
     }
@@ -179,7 +214,7 @@
     state.profiles = Array.isArray(data.profiles) ? data.profiles : [];
     saveLocalData();
     renderAll();
-    if (showToast) toast('Données récupérées depuis Netlify.', 'success');
+    if (showToast) toast('Données récupérées depuis Vercel.', 'success');
     updateSyncPill();
     return true;
   }
@@ -698,16 +733,43 @@
     renderAll();
   }
 
-  function handlePhoto(event) {
+  function resizeImageFile(file, maxWidth = 900, quality = 0.72) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Lecture photo impossible'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Photo invalide'));
+        img.onload = () => {
+          const scale = Math.min(1, maxWidth / Math.max(img.width, img.height));
+          const width = Math.max(1, Math.round(img.width * scale));
+          const height = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handlePhoto(event) {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const value = reader.result;
+    try {
+      const value = await resizeImageFile(file);
       setField('boatPhotoData', value);
       if (els.boatPhotoPreview) els.boatPhotoPreview.src = value;
-    };
-    reader.readAsDataURL(file);
+      toast('Photo compressée et ajoutée.', 'success');
+    } catch (error) {
+      toast(error.message || 'Impossible de charger la photo.', 'error');
+    } finally {
+      event.target.value = '';
+    }
   }
 
   function removePhoto() {

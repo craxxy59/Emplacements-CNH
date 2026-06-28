@@ -4,6 +4,7 @@
   "description": "Netlify Functions for CNH Marina Manager",
   "private": true,
   "dependencies": {
-    "@netlify/blobs": "^8.2.0"
+    "@netlify/blobs": "^8.2.0",
+    "@vercel/blob": "^2.5.0"
   }
 }
