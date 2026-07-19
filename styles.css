@@ -4478,7 +4478,7 @@ body.plan-only-mode #zonesBoard {
   border: 1px solid rgba(13,95,143,0.18);
 }
 
-/* === Visuels plan : cotisation / hivernage / tracteur === */
+/* === Visuels plan : cotisation / hivernage / tracteur / maintenance === */
 .plan-slot.cotis-nok {
   background: linear-gradient(135deg, #fff0f0, #fff6d6) !important;
   box-shadow: inset 0 0 0 2px #e8a84a, 0 0 0 1px rgba(200,74,74,0.25);
@@ -4487,6 +4487,17 @@ body.plan-only-mode #zonesBoard {
 .plan-slot.hiver-active {
   background: linear-gradient(135deg, #e6f3ff, #d9efff) !important;
   border-top-color: #3ea0d0 !important;
+  box-shadow: inset 0 0 0 2px #3ea0d0;
+}
+.plan-slot.maint-active {
+  background: linear-gradient(135deg, #ffe8e8, #fff0f0) !important;
+  border-top-color: #c64a4a !important;
+  box-shadow: inset 0 0 0 2px #c64a4a, 0 0 6px rgba(198,74,74,0.35) !important;
+  animation: pulse-maint 1.6s infinite alternate;
+}
+@keyframes pulse-maint {
+  from { box-shadow: inset 0 0 0 2px #c64a4a, 0 0 4px rgba(198,74,74,0.25); }
+  to { box-shadow: inset 0 0 0 2px #c64a4a, 0 0 10px rgba(198,74,74,0.55); }
 }
 .plan-slot.tracteur-active.is-occupied {
   border-top-color: #1f8f5f !important;
@@ -4509,6 +4520,7 @@ body.plan-only-mode #zonesBoard {
 .badge-cotis { left: 18px; top: 2px; background: #fff1dd; border: 1px solid #e8c98d; }
 .badge-cotis-ok { left: 18px; top: 2px; background: #e9f7ef; border: 1px solid #b9ddc8; color: #16633F; font-size: 9px; }
 .badge-tracteur-plan { right: 2px; bottom: 2px; background: #fff; border: 1px solid rgba(13,95,143,0.2); width: 14px; height: 14px; font-size: 9px; }
+.badge-maint-plan { left: 2px; bottom: 2px; background: #ffe8e8; border: 1px solid #e8a8d0; width: 16px; height: 16px; font-size: 10px; color: #9d3030; }
 
 /* Légende enrichie */
 .legend-pill.plan-status-hiver { background: #e6f3ff; color: #0d5f8f; border-left: 3px solid #3ea0d0; }

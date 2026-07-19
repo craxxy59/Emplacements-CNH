@@ -473,19 +473,23 @@
   function createPlanSlot(slot, selected) {
     const boat = boatForSlot(slot);
     const isHiver = boat?.status === 'hivernage';
-    const isCotisNok = boat ? boat.cotisationAJour === false : false;
+    const isMaint = boat?.status === 'maintenance';
+    const isCotisNok = boat ? boat.cotisationAJour !== true : false;
+    const isCotisOk = boat?.cotisationAJour === true;
     const isTracteur = !!boat?.descenteTracteur;
     const button = document.createElement('button');
     button.type = 'button';
     let cls = 'plan-slot' + (boat ? ' is-occupied' : ' plan-slot-free') + (selected === Number(slot) ? ' is-selected' : '') + (boat?.photoData ? ' has-photo' : '') + (boat?.status ? ` status-${boat.status}` : '');
     if (isCotisNok) cls += ' cotis-nok';
     if (isHiver) cls += ' hiver-active';
+    if (isMaint) cls += ' maint-active';
     if (isTracteur) cls += ' tracteur-active';
     button.className = cls;
-    const cotisTxt = isCotisNok ? ' • COTISATION NON À JOUR ⚠️' : boat?.cotisationAJour ? ' • Cotisation OK' : '';
+    const cotisTxt = isCotisNok ? ' • COTISATION NON À JOUR ⚠️' : isCotisOk ? ' • Cotisation OK ✅' : '';
     const hiverTxt = isHiver ? ' • HIVERNAGE ❄️' : '';
+    const maintTxt = isMaint ? ' • MAINTENANCE 🔧' : '';
     const tracTxt = isTracteur ? ' • Tracteur 🚜' : '';
-    button.title = boat ? `${slot} • ${boat.name || 'Bateau'} • ${boat.ownerName || ''}${cotisTxt}${hiverTxt}${tracTxt}` : `${slot} • libre`;
+    button.title = boat ? `${slot} • ${boat.name || 'Bateau'} • ${boat.ownerName || ''}${cotisTxt}${hiverTxt}${maintTxt}${tracTxt}` : `${slot} • libre`;
     button.dataset.slot = slot;
     button.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -505,7 +509,7 @@
     num.textContent = slot;
     button.appendChild(num);
 
-    // Badges visuels superposés
+    // Badges visuels superposés - ultra visibles
     if (boat) {
       if (isHiver) {
         const b = document.createElement('span');
@@ -514,16 +518,24 @@
         b.title = 'Hivernage';
         button.appendChild(b);
       }
+      if (isMaint) {
+        const b = document.createElement('span');
+        b.className = 'plan-badge badge-maint-plan';
+        b.textContent = '🔧';
+        b.title = 'Maintenance';
+        button.appendChild(b);
+      }
       if (isCotisNok) {
         const b = document.createElement('span');
         b.className = 'plan-badge badge-cotis';
         b.textContent = '⚠️';
         b.title = 'Cotisation non à jour';
         button.appendChild(b);
-      } else if (boat.cotisationAJour) {
+      } else if (isCotisOk) {
         const b = document.createElement('span');
         b.className = 'plan-badge badge-cotis-ok';
         b.textContent = '✓';
+        b.title = 'Cotisation OK';
         button.appendChild(b);
       }
       if (isTracteur) {
@@ -654,7 +666,7 @@
       const matchQuery = !query || haystack.includes(query);
       const matchZone = zoneFilter === 'all' || boat.zone === zoneFilter;
       const matchStatus = statusFilter === 'all' || boat.status === statusFilter;
-      const matchCotis = cotisFilter === 'all' || (cotisFilter === 'ok' ? !!boat.cotisationAJour : boat.cotisationAJour === false);
+      const matchCotis = cotisFilter === 'all' || (cotisFilter === 'ok' ? boat.cotisationAJour === true : boat.cotisationAJour !== true);
       const matchTract = tractFilter === 'all' || (tractFilter === 'yes' ? !!boat.descenteTracteur : !boat.descenteTracteur);
       return matchQuery && matchZone && matchStatus && matchCotis && matchTract;
     });
@@ -666,9 +678,9 @@
       if (sortFilter === 'name') return safeText(a.name).localeCompare(safeText(b.name), 'fr');
       if (sortFilter === 'owner') return safeText(a.ownerName).localeCompare(safeText(b.ownerName), 'fr');
       if (sortFilter === 'cotisation') {
-        // NOK d'abord
-        const av = a.cotisationAJour === false ? 0 : 1;
-        const bv = b.cotisationAJour === false ? 0 : 1;
+        // NOK d'abord : tout ce qui n'est pas true (false, undefined)
+        const av = a.cotisationAJour === true ? 1 : 0;
+        const bv = b.cotisationAJour === true ? 1 : 0;
         return av - bv;
       }
       if (sortFilter === 'hivernage') {
@@ -683,7 +695,7 @@
     if (els.fleetStatsBar) {
       const total = state.boats.length;
       const affich = boats.length;
-      const nok = boats.filter(b => b.cotisationAJour === false).length;
+      const nok = boats.filter(b => b.cotisationAJour !== true).length;
       const hiv = boats.filter(b => b.status === 'hivernage').length;
       const trac = boats.filter(b => !!b.descenteTracteur).length;
       const maint = boats.filter(b => b.status === 'maintenance').length;
@@ -709,7 +721,7 @@
     boats.forEach((boat) => {
       const card = document.createElement('article');
       const isHiver = boat.status === 'hivernage';
-      const isCotisNok = boat.cotisationAJour === false;
+      const isCotisNok = boat.cotisationAJour !== true;
       const isCotisOk = boat.cotisationAJour === true;
       const isTract = !!boat.descenteTracteur;
       const isMaint = boat.status === 'maintenance';
