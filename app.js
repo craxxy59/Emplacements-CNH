@@ -632,7 +632,14 @@
         const btn = document.createElement('button');
         btn.className = `slot-card ${boat ? 'occupied' : 'free'} ${Number(state.selectedSlot) === slot ? 'selected' : ''}`;
         btn.type = 'button';
-        btn.innerHTML = `<span class="slot-index">${slot}</span><strong>${boat?.name || 'Libre'}</strong><small>${boat?.ownerName || ''}</small>`;
+        const slotSpan = document.createElement('span');
+        slotSpan.className = 'slot-index';
+        slotSpan.textContent = slot;
+        const strong = document.createElement('strong');
+        strong.textContent = boat?.name || 'Libre';
+        const small = document.createElement('small');
+        small.textContent = boat?.ownerName || '';
+        btn.append(slotSpan, strong, small);
         btn.addEventListener('click', () => selectSlot(slot));
         grid.appendChild(btn);
       });
@@ -1647,8 +1654,10 @@
             showAuth();
           }
         }).catch(()=>{
-          // Si offline, on tente quand même avec le cache local mais on vérifiera au prochain sync
-          showApp(parsed.user || { name: 'Consultation CNH', role: 'lecture' });
+          // Hors-ligne: on bascule en lecture seule, pas de droits admin locaux (F6)
+          console.warn('Validation offline impossible, bascule lecture seule');
+          showApp({ name: 'Consultation CNH (hors-ligne)', role: 'lecture' });
+          toast('Mode hors-ligne : lecture seule, reconnecte-toi pour modifier.', 'error');
         });
       } catch (_) {
         try { localStorage.removeItem(AUTH_KEY); } catch(_){}

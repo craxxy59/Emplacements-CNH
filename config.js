@@ -1,3 +1,6 @@
-// Configuration CNH pour le dépôt Vercel indépendant.
-// Force l'utilisation des fonctions Vercel /api, sans dépendre de Netlify.
-window.CNH_CONFIG = { API_PREFIX: '/api' };
+// Configuration CNH : Vercel utilise /api, Netlify utilise /.netlify/functions.
+// Permet d'utiliser le même code sur les deux hébergements sans dépendance entre eux.
+window.CNH_CONFIG = {
+  API_PREFIX: location.hostname.includes('netlify.app') ? '/.netlify/functions' : '/api'
+};
+
