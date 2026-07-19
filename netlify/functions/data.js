@@ -5,43 +5,47 @@ const DEFAULT_DATA = { boats: [], profiles: [] };
 const STORE_NAME = 'cnh-marina-data';
 const KEY = 'main';
 const TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const ALLOWED_ORIGINS = [
-  'https://emplacements-cnh.vercel.app',
+const ALLOWED_ORIGINS = new Set([
   'https://emplacements-cnh.netlify.app',
-  'https://enplacement-cnh.netlify.app',
-  'http://localhost:5500',
-  'http://localhost:3000',
-  'http://127.0.0.1:5500',
-  'http://localhost:5173'
-];
+  'https://emplacements-cnh.vercel.app',
+  'http://localhost:3000'
+]);
 const ALLOWED_STATUSES = ['actif', 'hivernage', 'maintenance', 'archive'];
 const ALLOWED_ZONES = ['haut', 'milieu', 'bas'];
 
 function getCorsOrigin(event) {
   const headers = event.headers || {};
   const origin = headers.origin || headers.Origin || '';
-  if (!origin) return ALLOWED_ORIGINS[0];
-  if (ALLOWED_ORIGINS.includes(origin)) return origin;
-  if (origin.endsWith('.vercel.app') || origin.endsWith('.netlify.app')) return origin;
-  return ALLOWED_ORIGINS[0];
+  if (!origin) return null;
+  if (ALLOWED_ORIGINS.has(origin)) return origin;
+  return null;
 }
 
 function jsonResponse(event, body, statusCode = 200) {
   const origin = getCorsOrigin(event);
+  const baseHeaders = {
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-store',
+    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-headers': 'content-type,authorization',
+    'vary': 'Origin',
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+    'referrer-policy': 'strict-origin-when-cross-origin',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://emplacements-cnh.netlify.app https://emplacements-cnh.vercel.app; font-src 'self'; frame-ancestors 'none'"
+  };
+  if (origin) {
+    baseHeaders['access-control-allow-origin'] = origin;
+  }
   return {
     statusCode,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store',
-      'access-control-allow-origin': origin,
-      'access-control-allow-methods': 'GET,POST,OPTIONS',
-      'access-control-allow-headers': 'content-type,authorization',
-      'vary': 'Origin',
-      'x-content-type-options': 'nosniff'
-    },
+    headers: baseHeaders,
     body: JSON.stringify(body)
   };
 }
+
 
 function getSecret() {
   return process.env.CNH_AUTH_SECRET || process.env.NETLIFY_AUTH_TOKEN || process.env.NETLIFY_SITE_ID || 'cnh-dev-secret';
@@ -119,7 +123,13 @@ function sanitizeBoats(boats) {
 }
 
 exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') return jsonResponse(event, { ok: true });
+  if (event.httpMethod === 'OPTIONS') {
+    const origin = (event.headers && (event.headers.origin || event.headers.Origin)) || '';
+    if (origin && !ALLOWED_ORIGINS.has(origin)) {
+      return jsonResponse(event, { ok: false, error: 'CORS non autorisé' }, 403);
+    }
+    return jsonResponse(event, { ok: true });
+  }
 
   const token = getTokenFromEvent(event);
   const auth = verifyToken(token);

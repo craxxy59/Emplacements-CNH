@@ -75,6 +75,12 @@
     ].forEach((id) => { els[id] = $(id); });
   }
 
+  const ALLOWED_STATUSES = new Set(['actif', 'hivernage', 'maintenance', 'archive']);
+  const ALLOWED_ZONES = new Set(['haut', 'milieu', 'bas']);
+  const isValidPhotoData = (value) => typeof value === 'string' && value.length <= 800000 && /^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/i.test(value);
+  const safeStatusFor = (boat) => ALLOWED_STATUSES.has(boat?.status) ? boat.status : 'actif';
+  const safePhotoFor = (boat) => isValidPhotoData(boat?.photoData) ? boat.photoData : null;
+
   const allSlots = () => zones.flatMap((z) => z.slots);
   const findZoneBySlot = (slot) => zones.find((z) => z.slots.includes(Number(slot)));
   const boatForSlot = (slot) => state.boats.find((boat) => Number(boat.slot) === Number(slot) && boat.status !== 'archive');
@@ -482,16 +488,16 @@
 
   function createPlanSlot(slot, selected) {
     const boat = boatForSlot(slot);
-    const isHiver = boat?.status === 'hivernage';
-    const isMaint = boat?.status === 'maintenance';
+    const safeStat = safeStatusFor(boat || {});
+    const isHiver = safeStat === 'hivernage';
+    const isMaint = safeStat === 'maintenance';
     const isCotisNok = boat ? boat.cotisationAJour !== true : false;
     const isCotisOk = boat?.cotisationAJour === true;
     const isTracteur = !!boat?.descenteTracteur;
     const button = document.createElement('button');
     button.type = 'button';
-    const ALLOWED_STATUSES_PLAN = ['actif','hivernage','maintenance','archive'];
-    const safeStatus = boat?.status && ALLOWED_STATUSES_PLAN.includes(boat.status) ? boat.status : '';
-    const hasValidPhoto = boat?.photoData && typeof boat.photoData==='string' && boat.photoData.startsWith('data:image/') && boat.photoData.length < 800000;
+    const safeStatus = ALLOWED_STATUSES.has(boat?.status) ? boat.status : '';
+    const hasValidPhoto = isValidPhotoData(boat?.photoData);
     let cls = 'plan-slot' + (boat ? ' is-occupied' : ' plan-slot-free') + (selected === Number(slot) ? ' is-selected' : '') + (hasValidPhoto ? ' has-photo' : '') + (safeStatus ? ` status-${safeStatus}` : '');
     if (isCotisNok) cls += ' cotis-nok';
     if (isHiver) cls += ' hiver-active';
@@ -747,7 +753,7 @@
       const isMaint = boat.status === 'maintenance';
       const isArch = boat.status === 'archive';
 
-      const statusLabel = boat.status || 'actif';
+      const statusLabel = ALLOWED_STATUSES.has(boat.status) ? boat.status : 'actif';
       const statusClass = `status-${statusLabel}`;
       const zoneName = findZoneBySlot(boat.slot)?.short || boat.zone || '—';
 
@@ -757,7 +763,7 @@
         card.className = 'compact-boat-card' + (isCotisNok ? ' compact-cotis-nok' : '') + (isHiver ? ' compact-hiver' : '');
         card.innerHTML = `
           <div class="compact-boat-leading ${boat.photoData ? 'has-photo' : ''}">
-            ${(boat.photoData && boat.photoData.startsWith('data:image/')) ? `<img src="${boat.photoData}" alt="">` : '⛵'}
+            ${(isValidPhotoData(boat.photoData)) ? `<img src="${boat.photoData}" alt="">` : '⛵'}
           </div>
           <div class="compact-boat-main">
             <div class="compact-top-row">
@@ -790,7 +796,7 @@
 
         card.innerHTML = `
           <div class="boat-card-media-wrap">
-            <img class="boat-card-photo" src="${(boat.photoData && boat.photoData.startsWith('data:image/') ? boat.photoData : PLACEHOLDER_PHOTO)}" alt="${escapeHtml(boat.name || 'Bateau')}">
+            <img class="boat-card-photo" src="${(isValidPhotoData(boat.photoData) ? boat.photoData : PLACEHOLDER_PHOTO)}" alt="${escapeHtml(boat.name || 'Bateau')}">
             <div class="boat-card-photo-overlay">
               <span class="slot-pill">Place ${boat.slot || '—'}</span>
               <span class="zone-pill">${escapeHtml(zoneName)}</span>
