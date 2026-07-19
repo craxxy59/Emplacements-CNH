@@ -67,7 +67,7 @@
       'refreshButton', 'exportButton', 'excelExportButton', 'googleSheetsExportButton', 'importInput', 'openCreateBoatButton', 'floatingAddButton', 'mobileExcelButton', 'boatGrid', 'searchInput', 'zoneFilter', 'statusFilter',
       'boatModal', 'boatForm', 'boatId', 'boatPhotoData', 'boatPhotoPreview', 'boatPhotoInput', 'removeBoatPhotoButton', 'boatModalTitle',
       'boatName', 'licenceNumber', 'registrationNumber', 'boatType', 'boatStatus', 'ownerName', 'ownerPhone', 'ownerEmail', 'emergencyContact',
-      'zoneSelect', 'slotSelect', 'lengthInput', 'widthInput', 'equipmentInput', 'notesInput', 'duplicateBoatButton', 'deleteBoatButton',
+      'zoneSelect', 'slotSelect', 'lengthInput', 'widthInput', 'equipmentInput', 'notesInput', 'cotisationAJourInput', 'descenteTracteurInput', 'duplicateBoatButton', 'deleteBoatButton',
       'passwordModal', 'passwordForm', 'readonlyPasswordInput', 'managerPasswordInput', 'adminPasswordInput', 'openPasswordModalButton', 'accountCardName', 'accountCardEmail', 'accountRoleChip', 'accountPasswordChip',
       'workspaceTitle', 'workspaceSubtitle', 'fsMenuBtn', 'mobileActionMenu', 'fsRefreshBtn', 'fsExcelBtn', 'fsGoogleSheetsBtn', 'fsExportBtn', 'fsImportBtn', 'fsImportInput', 'fsNewBoatBtn', 'fsFleetBtn', 'fsPasswordsBtn', 'fsAdminBtn', 'fsLogoutBtn', 'sidebar', 'sidebarBackdrop', 'sidebarToggle', 'sidebarClose', 'cardModeButton', 'compactModeButton',
       'profilesNotice', 'profilesList'
@@ -89,10 +89,23 @@
   }
 
   async function fetchRemoteData() {
+    // Sécurité : sans token, on ne tente même pas de charger les données distantes
+    if (!state.authToken && !isLocalPreview()) return null;
     try {
-      const res = await fetch(SYNC_ENDPOINT, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const headers = {};
+      if (state.authToken) headers['authorization'] = `Bearer ${state.authToken}`;
+      const res = await fetch(SYNC_ENDPOINT, { cache: 'no-store', headers });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          // Le token peut avoir expiré après changement de secret
+          state.remoteMode = false;
+          updateSyncPill();
+          return null;
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data = await res.json();
+      if (data && data.ok === false) throw new Error(data.error || 'Non autorisé');
       state.remoteMode = true;
       return data;
     } catch (error) {
@@ -174,12 +187,29 @@
 
   async function pushRemoteData(showToast = false) {
     if (isLocalPreview()) return false;
+    if (!state.authToken) {
+      state.remoteMode = false;
+      updateSyncPill();
+      if (showToast) toast('Non authentifié : sauvegarde locale uniquement.', 'error');
+      return false;
+    }
     try {
       await compactStatePhotosIfNeeded();
-      const payload = JSON.stringify({ boats: state.boats, profiles: state.profiles });
+      const isNetlify = SYNC_ENDPOINT.includes('/.netlify/functions');
+      let boatsForRemote = state.boats;
+      // Sur Netlify la limite de payload Functions est ~6 Mo. Si on a 14 Mo de JSON avec photos, 500 assuré.
+      // On envoie donc une version sans les grosses photos base64 pour garder Netlify fonctionnel.
+      // Vercel, lui, garde les photos complètes.
+      if (isNetlify) {
+        const jsonFull = JSON.stringify({ boats: state.boats, profiles: state.profiles });
+        if (jsonFull.length > 4000000) {
+          boatsForRemote = state.boats.map(makeLightBoat);
+        }
+      }
+      const payload = JSON.stringify({ boats: boatsForRemote, profiles: state.profiles });
       const res = await fetch(SYNC_ENDPOINT, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'authorization': `Bearer ${state.authToken}` },
         body: payload
       });
       const data = await res.json().catch(() => ({}));
@@ -252,6 +282,12 @@
     applyRoleVisibility();
     renderAll();
     requestAnimationFrame(() => ensureAerialPlanVisible());
+    // Après login, on tente de récupérer les données sécurisées du serveur
+    if (state.authToken && !isLocalPreview()) {
+      syncFromRemote(false).then(() => {
+        // si remote a réussi, renderAll déjà fait
+      });
+    }
   }
 
   function showAuth() {
@@ -563,7 +599,7 @@
     const zoneFilter = els.zoneFilter?.value || 'all';
     const statusFilter = els.statusFilter?.value || 'all';
     const boats = state.boats.filter((boat) => {
-      const haystack = [boat.name, boat.ownerName, boat.ownerPhone, boat.ownerEmail, boat.licenceNumber, boat.registrationNumber, boat.boatType, boat.notes].join(' ').toLowerCase();
+      const haystack = [boat.name, boat.ownerName, boat.ownerPhone, boat.ownerEmail, boat.licenceNumber, boat.registrationNumber, boat.boatType, boat.notes, boat.cotisationAJour ? 'cotisation à jour' : 'cotisation impayée', boat.descenteTracteur ? 'tracteur' : ''].join(' ').toLowerCase();
       return (!query || haystack.includes(query)) && (zoneFilter === 'all' || boat.zone === zoneFilter) && (statusFilter === 'all' || boat.status === statusFilter);
     });
     els.boatGrid.innerHTML = '';
@@ -574,6 +610,12 @@
     boats.forEach((boat) => {
       const card = document.createElement('article');
       card.className = 'boat-card';
+      const cotisationBadge = boat.cotisationAJour
+        ? '<span class="badge-cotisation ok">✅ Cotisation à jour</span>'
+        : '<span class="badge-cotisation nok">⚠️ Cotisation non à jour</span>';
+      const tracteurBadge = boat.descenteTracteur
+        ? '<span class="badge-tracteur">🚜 Descente tracteur</span>'
+        : '';
       card.innerHTML = `
         <div class="boat-card-top">
           <img class="boat-card-photo" src="${boat.photoData || PLACEHOLDER_PHOTO}" alt="${escapeHtml(boat.name || 'Bateau')}">
@@ -581,6 +623,7 @@
             <span class="status-pill status-${boat.status || 'actif'}">${boat.status || 'actif'}</span>
             <h4>${escapeHtml(boat.name || 'Sans nom')}</h4>
             <p class="boat-card-meta">Place ${boat.slot || '—'} • ${escapeHtml(boat.ownerName || 'Propriétaire non renseigné')}</p>
+            <div class="boat-card-badges">${cotisationBadge}${tracteurBadge}</div>
           </div>
         </div>
         <div class="card-actions">
@@ -656,6 +699,8 @@
     setField('widthInput', existing?.width || '');
     setField('equipmentInput', existing?.equipment || '');
     setField('notesInput', existing?.notes || '');
+    if (els.cotisationAJourInput) els.cotisationAJourInput.checked = !!existing?.cotisationAJour;
+    if (els.descenteTracteurInput) els.descenteTracteurInput.checked = !!existing?.descenteTracteur;
     if (els.deleteBoatButton) els.deleteBoatButton.style.display = existing ? '' : 'none';
     if (els.duplicateBoatButton) els.duplicateBoatButton.style.display = existing ? '' : 'none';
     els.boatModal.classList.remove('hidden');
@@ -697,6 +742,8 @@
       width: els.widthInput?.value || '',
       equipment: safeText(els.equipmentInput?.value),
       notes: safeText(els.notesInput?.value),
+      cotisationAJour: !!els.cotisationAJourInput?.checked,
+      descenteTracteur: !!els.descenteTracteurInput?.checked,
       updatedAt: new Date().toISOString()
     };
 
@@ -870,6 +917,8 @@
         contact_urgence: boat?.emergencyContact || '',
         equipements: boat?.equipment || '',
         notes: boat?.notes || '',
+        cotisation_a_jour: boat ? (boat.cotisationAJour ? 'Oui' : 'Non') : '',
+        descente_tracteur: boat ? (boat.descenteTracteur ? 'Oui' : 'Non') : '',
         mise_a_jour: boat?.updatedAt ? new Date(boat.updatedAt).toLocaleString('fr-FR') : ''
       };
     });
@@ -884,9 +933,9 @@
     const headers = [
       'Emplacement', 'Zone', 'Statut place', 'Nom bateau', 'Propriétaire', 'Téléphone', 'Email',
       'Licence', 'Immatriculation', 'Type', 'Statut bateau', 'Longueur', 'Largeur',
-      'Contact urgence', 'Équipements', 'Notes', 'Mise à jour'
+      'Contact urgence', 'Équipements', 'Notes', 'Cotisation à jour', 'Descente tracteur', 'Mise à jour'
     ];
-    const keys = ['emplacement','zone','statut_place','nom_bateau','proprietaire','telephone','email','licence','immatriculation','type','statut_bateau','longueur','largeur','contact_urgence','equipements','notes','mise_a_jour'];
+    const keys = ['emplacement','zone','statut_place','nom_bateau','proprietaire','telephone','email','licence','immatriculation','type','statut_bateau','longueur','largeur','contact_urgence','equipements','notes','cotisation_a_jour','descente_tracteur','mise_a_jour'];
     const rows = getExportRows();
     // CSV UTF-8 avec séparateur virgule : import direct dans Google Sheets.
     const csv = [
@@ -910,7 +959,7 @@
     const headers = [
       'Emplacement', 'Zone', 'Statut place', 'Nom bateau', 'Propriétaire', 'Téléphone', 'Email',
       'Licence', 'Immatriculation', 'Type', 'Statut bateau', 'Longueur', 'Largeur',
-      'Contact urgence', 'Équipements', 'Notes', 'Mise à jour'
+      'Contact urgence', 'Équipements', 'Notes', 'Cotisation à jour', 'Descente tracteur', 'Mise à jour'
     ];
 
     const rows = allSlots().map((slot) => {
@@ -933,6 +982,8 @@
         boat?.emergencyContact || '',
         boat?.equipment || '',
         boat?.notes || '',
+        boat ? (boat.cotisationAJour ? 'Oui' : 'Non') : '',
+        boat ? (boat.descenteTracteur ? 'Oui' : 'Non') : '',
         boat?.updatedAt ? new Date(boat.updatedAt).toLocaleString('fr-FR') : ''
       ];
     });
@@ -940,7 +991,7 @@
     const occupied = state.boats.filter((b) => b.status !== 'archive').length;
     const free = allSlots().length - occupied;
 
-    const columnWidths = [80, 120, 95, 150, 160, 120, 190, 120, 130, 130, 110, 80, 80, 180, 220, 260, 150];
+    const columnWidths = [80, 120, 95, 150, 160, 120, 190, 120, 130, 130, 110, 80, 80, 180, 220, 260, 110, 120, 150];
     const columnsXml = columnWidths.map((width) => `<Column ss:Width="${width}"/>`).join('');
     const headerXml = headers.map((header) => excelCell(header, 'Header')).join('');
     const rowsXml = rows.map((row) => {
@@ -1015,10 +1066,10 @@
   </Style>
  </Styles>
  <Worksheet ss:Name="Emplacements CNH">
-  <Table ss:ExpandedColumnCount="17" ss:ExpandedRowCount="${rows.length + 5}" x:FullColumns="1" x:FullRows="1">
+  <Table ss:ExpandedColumnCount="19" ss:ExpandedRowCount="${rows.length + 5}" x:FullColumns="1" x:FullRows="1">
    ${columnsXml}
-   <Row ss:Height="30"><Cell ss:MergeAcross="16" ss:StyleID="Title"><Data ss:Type="String">CNH - Export des emplacements</Data></Cell></Row>
-   <Row><Cell ss:MergeAcross="16" ss:StyleID="SubTitle"><Data ss:Type="String">Généré le ${excelEscape(generatedAt)} • Occupés : ${occupied} • Libres : ${free} • Total : ${allSlots().length}</Data></Cell></Row>
+   <Row ss:Height="30"><Cell ss:MergeAcross="18" ss:StyleID="Title"><Data ss:Type="String">CNH - Export des emplacements</Data></Cell></Row>
+   <Row><Cell ss:MergeAcross="18" ss:StyleID="SubTitle"><Data ss:Type="String">Généré le ${excelEscape(generatedAt)} • Occupés : ${occupied} • Libres : ${free} • Total : ${allSlots().length}</Data></Cell></Row>
    <Row></Row>
    <Row ss:Height="26">${headerXml}</Row>
    ${rowsXml}
@@ -1032,7 +1083,7 @@
    <ProtectObjects>False</ProtectObjects>
    <ProtectScenarios>False</ProtectScenarios>
   </WorksheetOptions>
-  <AutoFilter x:Range="R4C1:R${rows.length + 4}C17" xmlns="urn:schemas-microsoft-com:office:excel"/>
+  <AutoFilter x:Range="R4C1:R${rows.length + 4}C19" xmlns="urn:schemas-microsoft-com:office:excel"/>
  </Worksheet>
 </Workbook>`;
 

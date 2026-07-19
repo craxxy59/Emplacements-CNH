@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { getStore } = require('@netlify/blobs');
 
 const DEFAULT_DATA = { boats: [], profiles: [] };
@@ -12,28 +13,70 @@ function jsonResponse(body, statusCode = 200) {
       'cache-control': 'no-store',
       'access-control-allow-origin': '*',
       'access-control-allow-methods': 'GET,POST,OPTIONS',
-      'access-control-allow-headers': 'content-type'
+      'access-control-allow-headers': 'content-type,authorization'
     },
     body: JSON.stringify(body)
   };
 }
 
+function getSecret() {
+  return process.env.CNH_AUTH_SECRET || process.env.NETLIFY_AUTH_TOKEN || process.env.NETLIFY_SITE_ID || 'cnh-dev-secret';
+}
+function sign(payload) {
+  return crypto.createHmac('sha256', getSecret()).update(payload).digest('hex');
+}
+function verifyToken(token) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return null;
+  const [payload, signature] = token.split('.');
+  if (sign(payload) !== signature) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return parsed && parsed.role ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+function getTokenFromEvent(event) {
+  const headers = event.headers || {};
+  const authHeader =
+    headers.authorization ||
+    headers.Authorization ||
+    headers['authorization'] ||
+    headers['Authorization'] ||
+    '';
+  if (authHeader) {
+    const bearer = String(authHeader).replace(/^Bearer\s+/i, '').trim();
+    if (bearer) return bearer;
+  }
+  // queryStringParameters
+  if (event.queryStringParameters && event.queryStringParameters.token) {
+    return String(event.queryStringParameters.token);
+  }
+  // body token fallback
+  try {
+    const body = JSON.parse(event.body || '{}');
+    if (body && body.token) return String(body.token);
+  } catch (_) {}
+  return null;
+}
+
 function getBlobStore() {
-  // Sur certains sites Netlify, Blobs n'est pas auto-configuré dans les Functions.
-  // On force donc la configuration avec SITE_ID + NETLIFY_AUTH_TOKEN.
   const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
   const token = process.env.NETLIFY_AUTH_TOKEN;
-
   if (siteID && token) {
     return getStore({ name: STORE_NAME, siteID, token });
   }
-
-  // Fonctionne uniquement si Netlify a injecté automatiquement le contexte Blobs.
   return getStore(STORE_NAME);
 }
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return jsonResponse({ ok: true });
+
+  // Sécurité : exiger un token valide
+  const token = getTokenFromEvent(event);
+  const auth = verifyToken(token);
+  const allowedRead = ['lecture', 'manager', 'admin', 'debug'];
+  const allowedWrite = ['manager', 'admin', 'debug'];
 
   let store;
   try {
@@ -48,6 +91,9 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === 'GET') {
+    if (!auth || !allowedRead.includes(auth.role)) {
+      return jsonResponse({ ok: false, error: 'Non authentifié', message: 'Token manquant ou invalide. Connecte-toi avec le mot de passe CNH.' }, 401);
+    }
     try {
       const saved = await store.get(KEY, { type: 'json' });
       return jsonResponse({ boats: Array.isArray(saved?.boats) ? saved.boats : [], profiles: Array.isArray(saved?.profiles) ? saved.profiles : [] });
@@ -61,6 +107,9 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === 'POST') {
+    if (!auth || !allowedWrite.includes(auth.role)) {
+      return jsonResponse({ ok: false, error: 'Accès refusé', message: 'Rôle modification/admin requis. Le rôle lecture ne peut pas enregistrer.' }, 403);
+    }
     try {
       const data = JSON.parse(event.body || '{}');
       const clean = {

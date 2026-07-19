@@ -4377,3 +4377,103 @@ body.plan-only-mode #zonesBoard {
     font-weight: 950;
   }
 }
+
+/* === CNH nouveautés : cases à cocher cotisation / tracteur === */
+.checkbox-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(16,40,62,0.10);
+  cursor: pointer;
+  transition: border-color .18s ease, box-shadow .18s ease;
+  user-select: none;
+}
+.checkbox-field:hover {
+  border-color: rgba(62,160,208,0.35);
+  box-shadow: 0 6px 18px rgba(8,31,51,0.06);
+}
+.checkbox-field input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.checkbox-box {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 8px;
+  border: 2px solid rgba(16,40,62,0.18);
+  background: #fff;
+  display: grid;
+  place-items: center;
+  transition: all .18s ease;
+  margin-top: 1px;
+}
+.checkbox-box::after {
+  content: "✓";
+  font-weight: 900;
+  font-size: 14px;
+  color: #fff;
+  transform: scale(0);
+  transition: transform .14s ease;
+}
+.checkbox-field input:checked + .checkbox-box {
+  background: linear-gradient(135deg, #0d2740, #3ea0d0);
+  border-color: #0d2740;
+}
+.checkbox-field input:checked + .checkbox-box::after {
+  transform: scale(1);
+}
+.checkbox-label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.checkbox-label strong {
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+.checkbox-label small {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+.boat-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.badge-cotisation {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+.badge-cotisation.ok {
+  background: #e9f7ef;
+  color: #16633F;
+  border: 1px solid #b9ddc8;
+}
+.badge-cotisation.nok {
+  background: #fff1dd;
+  color: #9B6B1D;
+  border: 1px solid #e8c98d;
+}
+.badge-tracteur {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  background: #ddeeff;
+  color: #0d2740;
+  border: 1px solid rgba(13,95,143,0.18);
+}

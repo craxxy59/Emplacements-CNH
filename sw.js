@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cnh-pwa-v1.0.20';
+const CACHE_NAME = 'cnh-pwa-v1.0.21';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -39,8 +39,8 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') return;
 
-  // Les données synchronisées ne doivent pas être servies depuis le cache.
-  if (url.pathname.startsWith('/.netlify/functions/data')) {
+  // Les données synchronisées ne doivent pas être servies depuis le cache (sécurisées).
+  if (url.pathname.startsWith('/.netlify/functions/data') || url.pathname.startsWith('/api/data') || url.pathname.startsWith('/.netlify/functions/auth') || url.pathname.startsWith('/api/auth')) {
     event.respondWith(fetch(request));
     return;
   }
