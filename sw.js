@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cnh-pwa-v1.0.28-strict';
+const CACHE_NAME = 'cnh-pwa-v1.0.29-bateaux';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
