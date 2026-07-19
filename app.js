@@ -295,7 +295,12 @@
     els.authView?.classList.remove('hidden');
     els.appView?.classList.add('hidden');
     document.body.classList.remove('plan-only-mode', 'plan-fullscreen-open', 'debug-mode');
-    localStorage.removeItem(AUTH_KEY);
+    try {
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (_) {}
+    state.authToken = null;
+    state.currentUser = null;
   }
 
   function ensureAerialPlanVisible() {
@@ -333,7 +338,12 @@
   }
 
   function logout() {
+    try {
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (_) {}
     showAuth();
+    toast('Déconnecté, données locales effacées.', 'success');
   }
 
   function applyRoleVisibility() {
@@ -479,7 +489,10 @@
     const isTracteur = !!boat?.descenteTracteur;
     const button = document.createElement('button');
     button.type = 'button';
-    let cls = 'plan-slot' + (boat ? ' is-occupied' : ' plan-slot-free') + (selected === Number(slot) ? ' is-selected' : '') + (boat?.photoData ? ' has-photo' : '') + (boat?.status ? ` status-${boat.status}` : '');
+    const ALLOWED_STATUSES_PLAN = ['actif','hivernage','maintenance','archive'];
+    const safeStatus = boat?.status && ALLOWED_STATUSES_PLAN.includes(boat.status) ? boat.status : '';
+    const hasValidPhoto = boat?.photoData && typeof boat.photoData==='string' && boat.photoData.startsWith('data:image/') && boat.photoData.length < 800000;
+    let cls = 'plan-slot' + (boat ? ' is-occupied' : ' plan-slot-free') + (selected === Number(slot) ? ' is-selected' : '') + (hasValidPhoto ? ' has-photo' : '') + (safeStatus ? ` status-${safeStatus}` : '');
     if (isCotisNok) cls += ' cotis-nok';
     if (isHiver) cls += ' hiver-active';
     if (isMaint) cls += ' maint-active';
@@ -496,7 +509,7 @@
       selectSlot(slot);
     });
 
-    if (boat?.photoData) {
+    if (hasValidPhoto) {
       const photo = document.createElement('img');
       photo.className = 'plan-slot-photo';
       photo.src = boat.photoData;
@@ -737,7 +750,7 @@
         card.className = 'compact-boat-card' + (isCotisNok ? ' compact-cotis-nok' : '') + (isHiver ? ' compact-hiver' : '');
         card.innerHTML = `
           <div class="compact-boat-leading ${boat.photoData ? 'has-photo' : ''}">
-            ${boat.photoData ? `<img src="${boat.photoData}" alt="">` : '⛵'}
+            ${(boat.photoData && boat.photoData.startsWith('data:image/')) ? `<img src="${boat.photoData}" alt="">` : '⛵'}
           </div>
           <div class="compact-boat-main">
             <div class="compact-top-row">
@@ -770,7 +783,7 @@
 
         card.innerHTML = `
           <div class="boat-card-media-wrap">
-            <img class="boat-card-photo" src="${boat.photoData || PLACEHOLDER_PHOTO}" alt="${escapeHtml(boat.name || 'Bateau')}">
+            <img class="boat-card-photo" src="${(boat.photoData && boat.photoData.startsWith('data:image/') ? boat.photoData : PLACEHOLDER_PHOTO)}" alt="${escapeHtml(boat.name || 'Bateau')}">
             <div class="boat-card-photo-overlay">
               <span class="slot-pill">Place ${boat.slot || '—'}</span>
               <span class="zone-pill">${escapeHtml(zoneName)}</span>
@@ -823,6 +836,15 @@
     const div = document.createElement('div');
     div.textContent = value ?? '';
     return div.innerHTML;
+  }
+
+  function sanitizeForCsv(value) {
+    const str = String(value ?? '');
+    const trimmed = str.trim();
+    if (/^[=+\-@]/.test(trimmed)) {
+      return "'" + str;
+    }
+    return str;
   }
 
   function populateSelects() {
@@ -1061,7 +1083,8 @@
 
 
   function excelEscape(value) {
-    return String(value ?? '')
+    const sanitized = sanitizeForCsv(value);
+    return String(sanitized ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -1102,7 +1125,8 @@
   }
 
   function csvEscape(value) {
-    const text = String(value ?? '').replace(/\r?\n|\r/g, ' ').trim();
+    const safe = sanitizeForCsv(value);
+    const text = String(safe ?? '').replace(/\r?\n|\r/g, ' ').trim();
     return `"${text.replace(/"/g, '""')}"`;
   }
 
@@ -1284,14 +1308,46 @@
     reader.onload = () => {
       try {
         const data = JSON.parse(reader.result);
-        state.boats = Array.isArray(data.boats) ? data.boats : [];
-        state.profiles = Array.isArray(data.profiles) ? data.profiles : [];
+        const ALLOWED_STATUSES = ['actif','hivernage','maintenance','archive'];
+        const ALLOWED_ZONES = ['haut','milieu','bas'];
+        const rawBoats = Array.isArray(data.boats) ? data.boats : [];
+        const cleanBoats = rawBoats.filter(b=>b&&typeof b==='object').map(b=>{
+          const slot = parseInt(b.slot,10);
+          if (isNaN(slot)||slot<1||slot>46) return null;
+          const status = ALLOWED_STATUSES.includes(b.status)?b.status:'actif';
+          const zone = ALLOWED_ZONES.includes(b.zone)?b.zone:'haut';
+          const safeStr = (v,max=200)=>String(v??'').slice(0,max);
+          const photo = typeof b.photoData==='string'&&b.photoData.startsWith('data:image/')&&b.photoData.length<800000?b.photoData:'';
+          return {
+            id: safeStr(b.id,100)||uid(),
+            slot, zone, status,
+            name: safeStr(b.name,100),
+            ownerName: safeStr(b.ownerName,100),
+            ownerPhone: safeStr(b.ownerPhone,30),
+            ownerEmail: safeStr(b.ownerEmail,100),
+            licenceNumber: safeStr(b.licenceNumber,50),
+            registrationNumber: safeStr(b.registrationNumber,50),
+            boatType: safeStr(b.boatType,50),
+            length: b.length?String(b.length).slice(0,10):'',
+            width: b.width?String(b.width).slice(0,10):'',
+            equipment: safeStr(b.equipment,500),
+            notes: safeStr(b.notes,2000),
+            cotisationAJour: b.cotisationAJour===true,
+            descenteTracteur: b.descenteTracteur===true,
+            photoData: photo,
+            updatedAt: new Date().toISOString()
+          };
+        }).filter(Boolean);
+        state.boats = cleanBoats;
+        state.profiles = Array.isArray(data.profiles) ? data.profiles.slice(0,100) : [];
         compactStatePhotosIfNeeded().finally(() => {
           saveData(true);
           renderAll();
+          toast(`Import validé : ${cleanBoats.length} bateaux sur ${rawBoats.length}`, 'success');
         });
-      } catch (_) {
-        toast('Fichier JSON invalide.', 'error');
+      } catch (err) {
+        console.error(err);
+        toast('Fichier JSON invalide ou non conforme.', 'error');
       }
     };
     reader.readAsText(file);
@@ -1373,26 +1429,12 @@
 
   async function openPasswordManagerModal() {
     if (!canAdmin()) return toast('Accès administrateur requis.', 'error');
-    if (els.readonlyPasswordInput) els.readonlyPasswordInput.value = '';
-    if (els.managerPasswordInput) els.managerPasswordInput.value = '';
-    if (els.adminPasswordInput) els.adminPasswordInput.value = '';
+    if (els.readonlyPasswordInput) { els.readonlyPasswordInput.value = ''; els.readonlyPasswordInput.placeholder = 'Nouveau mot de passe (laisser vide = inchangé)'; }
+    if (els.managerPasswordInput) { els.managerPasswordInput.value = ''; els.managerPasswordInput.placeholder = 'Nouveau mot de passe'; }
+    if (els.adminPasswordInput) { els.adminPasswordInput.value = ''; els.adminPasswordInput.placeholder = 'Nouveau mot de passe'; }
     els.passwordModal?.classList.remove('hidden');
     els.passwordModal?.setAttribute('aria-hidden', 'false');
-
-    try {
-      const res = await fetch(AUTH_ENDPOINT, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'get-passwords', token: state.authToken })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Impossible de récupérer les mots de passe');
-      if (els.readonlyPasswordInput) els.readonlyPasswordInput.value = data.passwords?.readonly || '';
-      if (els.managerPasswordInput) els.managerPasswordInput.value = data.passwords?.manager || '';
-      if (els.adminPasswordInput) els.adminPasswordInput.value = data.passwords?.admin || '';
-    } catch (error) {
-      toast(error.message || 'Mots de passe actuels indisponibles. Renseigne les champs à modifier.', 'error');
-    }
+    toast('Les mots de passe sont hachés et non récupérables : saisis seulement ceux que tu veux réinitialiser.', '');
   }
 
   function handleFullscreenAction(event) {
@@ -1589,10 +1631,28 @@
     if (savedAuth) {
       try {
         const parsed = JSON.parse(savedAuth);
-        state.authToken = parsed.token || null;
-        showApp(parsed.user || { name: 'Consultation CNH', role: 'lecture' });
+        const token = parsed.token || null;
+        if (!token) throw new Error('no token');
+        state.authToken = token;
+        // Validation serveur du token avant d'afficher l'app (F6)
+        fetch(AUTH_ENDPOINT, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'validate', token })
+        }).then(r=>r.json()).then(data=>{
+          if (data && data.ok && data.user) {
+            showApp(data.user);
+          } else {
+            try { localStorage.removeItem(AUTH_KEY); localStorage.removeItem(STORAGE_KEY); } catch(_){}
+            showAuth();
+          }
+        }).catch(()=>{
+          // Si offline, on tente quand même avec le cache local mais on vérifiera au prochain sync
+          showApp(parsed.user || { name: 'Consultation CNH', role: 'lecture' });
+        });
       } catch (_) {
-        showApp({ name: 'Consultation CNH', role: 'lecture' });
+        try { localStorage.removeItem(AUTH_KEY); } catch(_){}
+        showAuth();
       }
     } else showAuth();
     registerServiceWorker();
