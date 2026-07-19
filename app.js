@@ -51,6 +51,7 @@
     selectedSlot: null,
     currentUser: null,
     planView: 'map',
+    fleetView: 'cards',
     editingId: null,
     remoteMode: false,
     localStorageWarned: false
@@ -64,7 +65,7 @@
       'sitePlanSection', 'sitePlanMap', 'zonesBoard', 'zoneFocusBar', 'zoneFocusTitle', 'zoneFocusMeta', 'zoneFocusAllBtn', 'zoneFocusGridBtn',
       'planMapViewBtn', 'planGridViewBtn', 'openPlanFullscreenBtn', 'planFullscreen', 'planFullscreenBody', 'closePlanFullscreenBtn',
       'statTotalSpots', 'statOccupied', 'statFree', 'statComplete', 'sidebarZoneStats', 'toastContainer',
-      'refreshButton', 'exportButton', 'excelExportButton', 'googleSheetsExportButton', 'importInput', 'openCreateBoatButton', 'floatingAddButton', 'mobileExcelButton', 'boatGrid', 'searchInput', 'zoneFilter', 'statusFilter',
+      'refreshButton', 'exportButton', 'excelExportButton', 'googleSheetsExportButton', 'importInput', 'openCreateBoatButton', 'floatingAddButton', 'mobileExcelButton', 'boatGrid', 'searchInput', 'zoneFilter', 'statusFilter', 'cotisationFilter', 'tracteurFilter', 'sortFilter', 'fleetStatsBar',
       'boatModal', 'boatForm', 'boatId', 'boatPhotoData', 'boatPhotoPreview', 'boatPhotoInput', 'removeBoatPhotoButton', 'boatModalTitle',
       'boatName', 'licenceNumber', 'registrationNumber', 'boatType', 'boatStatus', 'ownerName', 'ownerPhone', 'ownerEmail', 'emergencyContact',
       'zoneSelect', 'slotSelect', 'lengthInput', 'widthInput', 'equipmentInput', 'notesInput', 'cotisationAJourInput', 'descenteTracteurInput', 'duplicateBoatButton', 'deleteBoatButton',
@@ -471,10 +472,20 @@
 
   function createPlanSlot(slot, selected) {
     const boat = boatForSlot(slot);
+    const isHiver = boat?.status === 'hivernage';
+    const isCotisNok = boat ? boat.cotisationAJour === false : false;
+    const isTracteur = !!boat?.descenteTracteur;
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'plan-slot' + (boat ? ' is-occupied' : ' plan-slot-free') + (selected === Number(slot) ? ' is-selected' : '') + (boat?.photoData ? ' has-photo' : '') + (boat?.status ? ` status-${boat.status}` : '');
-    button.title = boat ? `${slot} • ${boat.name || 'Bateau'} • ${boat.ownerName || ''}` : `${slot} • libre`;
+    let cls = 'plan-slot' + (boat ? ' is-occupied' : ' plan-slot-free') + (selected === Number(slot) ? ' is-selected' : '') + (boat?.photoData ? ' has-photo' : '') + (boat?.status ? ` status-${boat.status}` : '');
+    if (isCotisNok) cls += ' cotis-nok';
+    if (isHiver) cls += ' hiver-active';
+    if (isTracteur) cls += ' tracteur-active';
+    button.className = cls;
+    const cotisTxt = isCotisNok ? ' • COTISATION NON À JOUR ⚠️' : boat?.cotisationAJour ? ' • Cotisation OK' : '';
+    const hiverTxt = isHiver ? ' • HIVERNAGE ❄️' : '';
+    const tracTxt = isTracteur ? ' • Tracteur 🚜' : '';
+    button.title = boat ? `${slot} • ${boat.name || 'Bateau'} • ${boat.ownerName || ''}${cotisTxt}${hiverTxt}${tracTxt}` : `${slot} • libre`;
     button.dataset.slot = slot;
     button.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -493,6 +504,36 @@
     num.className = 'plan-slot-num';
     num.textContent = slot;
     button.appendChild(num);
+
+    // Badges visuels superposés
+    if (boat) {
+      if (isHiver) {
+        const b = document.createElement('span');
+        b.className = 'plan-badge badge-hiver';
+        b.textContent = '❄️';
+        b.title = 'Hivernage';
+        button.appendChild(b);
+      }
+      if (isCotisNok) {
+        const b = document.createElement('span');
+        b.className = 'plan-badge badge-cotis';
+        b.textContent = '⚠️';
+        b.title = 'Cotisation non à jour';
+        button.appendChild(b);
+      } else if (boat.cotisationAJour) {
+        const b = document.createElement('span');
+        b.className = 'plan-badge badge-cotis-ok';
+        b.textContent = '✓';
+        button.appendChild(b);
+      }
+      if (isTracteur) {
+        const b = document.createElement('span');
+        b.className = 'plan-badge badge-tracteur-plan';
+        b.textContent = '🚜';
+        b.title = 'Descente tracteur';
+        button.appendChild(b);
+      }
+    }
 
     if (boat) {
       const name = document.createElement('span');
@@ -598,46 +639,170 @@
     const query = safeText(els.searchInput?.value).toLowerCase();
     const zoneFilter = els.zoneFilter?.value || 'all';
     const statusFilter = els.statusFilter?.value || 'all';
-    const boats = state.boats.filter((boat) => {
-      const haystack = [boat.name, boat.ownerName, boat.ownerPhone, boat.ownerEmail, boat.licenceNumber, boat.registrationNumber, boat.boatType, boat.notes, boat.cotisationAJour ? 'cotisation à jour' : 'cotisation impayée', boat.descenteTracteur ? 'tracteur' : ''].join(' ').toLowerCase();
-      return (!query || haystack.includes(query)) && (zoneFilter === 'all' || boat.zone === zoneFilter) && (statusFilter === 'all' || boat.status === statusFilter);
+    const cotisFilter = els.cotisationFilter?.value || 'all';
+    const tractFilter = els.tracteurFilter?.value || 'all';
+    const sortFilter = els.sortFilter?.value || 'slot';
+
+    let boats = state.boats.filter((boat) => {
+      const haystack = [
+        boat.name, boat.ownerName, boat.ownerPhone, boat.ownerEmail,
+        boat.licenceNumber, boat.registrationNumber, boat.boatType, boat.notes,
+        boat.cotisationAJour ? 'cotisation à jour' : 'cotisation impayée',
+        boat.descenteTracteur ? 'tracteur' : '',
+        boat.status || ''
+      ].join(' ').toLowerCase();
+      const matchQuery = !query || haystack.includes(query);
+      const matchZone = zoneFilter === 'all' || boat.zone === zoneFilter;
+      const matchStatus = statusFilter === 'all' || boat.status === statusFilter;
+      const matchCotis = cotisFilter === 'all' || (cotisFilter === 'ok' ? !!boat.cotisationAJour : boat.cotisationAJour === false);
+      const matchTract = tractFilter === 'all' || (tractFilter === 'yes' ? !!boat.descenteTracteur : !boat.descenteTracteur);
+      return matchQuery && matchZone && matchStatus && matchCotis && matchTract;
     });
+
+    // Tri sophistiqué
+    boats.sort((a, b) => {
+      if (sortFilter === 'slot') return (Number(a.slot) || 0) - (Number(b.slot) || 0);
+      if (sortFilter === 'slot_desc') return (Number(b.slot) || 0) - (Number(a.slot) || 0);
+      if (sortFilter === 'name') return safeText(a.name).localeCompare(safeText(b.name), 'fr');
+      if (sortFilter === 'owner') return safeText(a.ownerName).localeCompare(safeText(b.ownerName), 'fr');
+      if (sortFilter === 'cotisation') {
+        // NOK d'abord
+        const av = a.cotisationAJour === false ? 0 : 1;
+        const bv = b.cotisationAJour === false ? 0 : 1;
+        return av - bv;
+      }
+      if (sortFilter === 'hivernage') {
+        const av = a.status === 'hivernage' ? 0 : 1;
+        const bv = b.status === 'hivernage' ? 0 : 1;
+        return av - bv;
+      }
+      return 0;
+    });
+
+    // Barre de stats fleet
+    if (els.fleetStatsBar) {
+      const total = state.boats.length;
+      const affich = boats.length;
+      const nok = boats.filter(b => b.cotisationAJour === false).length;
+      const hiv = boats.filter(b => b.status === 'hivernage').length;
+      const trac = boats.filter(b => !!b.descenteTracteur).length;
+      const maint = boats.filter(b => b.status === 'maintenance').length;
+      els.fleetStatsBar.innerHTML = `
+        <div class="fleet-stat"><strong>${affich}</strong><small>affichés / ${total}</small></div>
+        <div class="fleet-stat warn"><strong>${nok}</strong><small>cotis. non à jour</small></div>
+        <div class="fleet-stat info"><strong>${hiv}</strong><small>hivernage ❄️</small></div>
+        <div class="fleet-stat"><strong>${trac}</strong><small>tracteur 🚜</small></div>
+        ${maint ? `<div class="fleet-stat danger"><strong>${maint}</strong><small>maintenance</small></div>` : ''}
+      `;
+    }
+
     els.boatGrid.innerHTML = '';
+    els.boatGrid.className = state.fleetView === 'compact' ? 'boat-grid compact-grid' : 'boat-grid';
+    if (els.cardModeButton) els.cardModeButton.classList.toggle('active', state.fleetView !== 'compact');
+    if (els.compactModeButton) els.compactModeButton.classList.toggle('active', state.fleetView === 'compact');
+
     if (!boats.length) {
-      els.boatGrid.innerHTML = '<div class="inline-notice">Aucune fiche bateau pour le moment. Cliquez sur un emplacement libre du plan pour créer une fiche.</div>';
+      els.boatGrid.innerHTML = '<div class="inline-notice">Aucun bateau ne correspond aux filtres. Réinitialise les filtres ou crée une fiche depuis le plan.</div>';
       return;
     }
+
     boats.forEach((boat) => {
       const card = document.createElement('article');
-      card.className = 'boat-card';
-      const cotisationBadge = boat.cotisationAJour
-        ? '<span class="badge-cotisation ok">✅ Cotisation à jour</span>'
-        : '<span class="badge-cotisation nok">⚠️ Cotisation non à jour</span>';
-      const tracteurBadge = boat.descenteTracteur
-        ? '<span class="badge-tracteur">🚜 Descente tracteur</span>'
-        : '';
-      card.innerHTML = `
-        <div class="boat-card-top">
-          <img class="boat-card-photo" src="${boat.photoData || PLACEHOLDER_PHOTO}" alt="${escapeHtml(boat.name || 'Bateau')}">
-          <div>
-            <span class="status-pill status-${boat.status || 'actif'}">${boat.status || 'actif'}</span>
-            <h4>${escapeHtml(boat.name || 'Sans nom')}</h4>
-            <p class="boat-card-meta">Place ${boat.slot || '—'} • ${escapeHtml(boat.ownerName || 'Propriétaire non renseigné')}</p>
-            <div class="boat-card-badges">${cotisationBadge}${tracteurBadge}</div>
+      const isHiver = boat.status === 'hivernage';
+      const isCotisNok = boat.cotisationAJour === false;
+      const isCotisOk = boat.cotisationAJour === true;
+      const isTract = !!boat.descenteTracteur;
+      const isMaint = boat.status === 'maintenance';
+      const isArch = boat.status === 'archive';
+
+      const statusLabel = boat.status || 'actif';
+      const statusClass = `status-${statusLabel}`;
+      const zoneName = findZoneBySlot(boat.slot)?.short || boat.zone || '—';
+
+      card.className = 'boat-card' + (isCotisNok ? ' card-cotis-nok' : '') + (isHiver ? ' card-hiver' : '') + (isMaint ? ' card-maint' : '');
+
+      if (state.fleetView === 'compact') {
+        card.className = 'compact-boat-card' + (isCotisNok ? ' compact-cotis-nok' : '') + (isHiver ? ' compact-hiver' : '');
+        card.innerHTML = `
+          <div class="compact-boat-leading ${boat.photoData ? 'has-photo' : ''}">
+            ${boat.photoData ? `<img src="${boat.photoData}" alt="">` : '⛵'}
           </div>
-        </div>
-        <div class="card-actions">
-          <button type="button" class="secondary-button" data-action="locate">Localiser</button>
-          <button type="button" class="primary-button" data-action="edit">Ouvrir</button>
-        </div>`;
-      card.querySelector('[data-action="locate"]').addEventListener('click', () => {
-        state.selectedSlot = Number(boat.slot);
-        setPlanView('map');
-        renderPlan();
-        switchTab('dashboardTab');
-        ensureAerialPlanVisible();
-      });
-      card.querySelector('[data-action="edit"]').addEventListener('click', () => openBoatModal(boat.id));
+          <div class="compact-boat-main">
+            <div class="compact-top-row">
+              <strong class="compact-boat-title">${escapeHtml(boat.name || 'Sans nom')} • ${boat.slot || '—'}</strong>
+              <span class="compact-status ${statusClass}">${statusLabel}${isHiver ? ' ❄️' : ''}</span>
+            </div>
+            <div class="compact-boat-meta">${escapeHtml(boat.ownerName || '—')} • ${escapeHtml(boat.ownerPhone || '')} ${zoneName}</div>
+            <div class="compact-badges">
+              ${isCotisNok ? '<span class="mini-badge nok">⚠️ Cotis.</span>' : isCotisOk ? '<span class="mini-badge ok">Cotis. OK</span>' : ''}
+              ${isTract ? '<span class="mini-badge tract">🚜</span>' : ''}
+              ${isHiver ? '<span class="mini-badge hiver">❄️ Hivernage</span>' : ''}
+            </div>
+          </div>
+          <div class="compact-boat-chevron">›</div>
+        `;
+        card.addEventListener('click', () => openBoatModal(boat.id));
+      } else {
+        // Mode cartes sophistiqué
+        const cotisationBadge = isCotisOk
+          ? '<span class="badge-cotisation ok">✅ Cotisation à jour</span>'
+          : isCotisNok ? '<span class="badge-cotisation nok">⚠️ Cotisation non à jour</span>' : '<span class="badge-cotisation unknown">Cotisation —</span>';
+        const tracteurBadge = isTract ? '<span class="badge-tracteur">🚜 Descente tracteur</span>' : '';
+        const hiverBadge = isHiver ? '<span class="badge-hiver">❄️ Hivernage</span>' : '';
+        const maintBadge = isMaint ? '<span class="badge-maint">🔧 Maintenance</span>' : '';
+        const archBadge = isArch ? '<span class="badge-arch">📦 Archivé</span>' : '';
+
+        const licenceLine = [boat.licenceNumber ? `Lic: ${escapeHtml(boat.licenceNumber)}` : '', boat.registrationNumber ? `Immat: ${escapeHtml(boat.registrationNumber)}` : '', boat.boatType ? escapeHtml(boat.boatType) : ''].filter(Boolean).join(' • ');
+        const dimLine = [boat.length ? `${boat.length}m` : '', boat.width ? `${boat.width}m` : ''].filter(Boolean).join(' x ');
+        const phoneLink = boat.ownerPhone ? `<a href="tel:${escapeHtml(boat.ownerPhone)}">${escapeHtml(boat.ownerPhone)}</a>` : '';
+
+        card.innerHTML = `
+          <div class="boat-card-media-wrap">
+            <img class="boat-card-photo" src="${boat.photoData || PLACEHOLDER_PHOTO}" alt="${escapeHtml(boat.name || 'Bateau')}">
+            <div class="boat-card-photo-overlay">
+              <span class="slot-pill">Place ${boat.slot || '—'}</span>
+              <span class="zone-pill">${escapeHtml(zoneName)}</span>
+            </div>
+            ${isCotisNok ? '<div class="card-corner-ribbon nok">Cotisation</div>' : ''}
+            ${isHiver ? '<div class="card-corner-ribbon hiver">Hivernage</div>' : ''}
+          </div>
+          <div class="boat-card-body">
+            <div class="boat-card-head">
+              <span class="status-pill ${statusClass}">${statusLabel}${isHiver ? ' ❄️' : ''}</span>
+              <div class="boat-card-actions-mini">
+                <button type="button" class="mini-icon-btn" data-action="locate" title="Localiser sur plan">🗺️</button>
+                <button type="button" class="mini-icon-btn" data-action="edit" title="Ouvrir fiche">✏️</button>
+              </div>
+            </div>
+            <h4 class="boat-card-title">${escapeHtml(boat.name || 'Sans nom')}</h4>
+            <p class="boat-card-meta">
+              <strong>${escapeHtml(boat.ownerName || 'Propriétaire —')}</strong><br>
+              ${phoneLink ? phoneLink + ' • ' : ''}${escapeHtml(boat.ownerEmail || '')}
+            </p>
+            ${licenceLine ? `<div class="boat-card-line">${licenceLine}</div>` : ''}
+            ${dimLine ? `<div class="boat-card-line dim">📏 ${dimLine}</div>` : ''}
+            <div class="boat-card-badges">${cotisationBadge}${tracteurBadge}${hiverBadge}${maintBadge}${archBadge}</div>
+            ${boat.equipment ? `<div class="boat-card-note"><small>🔧 ${escapeHtml(boat.equipment)}</small></div>` : ''}
+            ${boat.notes ? `<div class="boat-card-note"><small>📝 ${escapeHtml((boat.notes || '').slice(0, 120))}${(boat.notes || '').length > 120 ? '…' : ''}</small></div>` : ''}
+          </div>
+          <div class="card-actions">
+            <button type="button" class="secondary-button" data-action="locate">📍 Localiser</button>
+            <button type="button" class="primary-button" data-action="edit">Ouvrir fiche</button>
+          </div>
+        `;
+        card.querySelector('[data-action="locate"]').addEventListener('click', (e) => {
+          e.stopPropagation();
+          state.selectedSlot = Number(boat.slot);
+          setPlanView('map');
+          renderPlan();
+          switchTab('dashboardTab');
+          ensureAerialPlanVisible();
+        });
+        card.querySelectorAll('[data-action="edit"]').forEach(btn => btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openBoatModal(boat.id);
+        }));
+      }
       els.boatGrid.appendChild(card);
     });
   }
@@ -1326,6 +1491,11 @@
     els.searchInput?.addEventListener('input', renderFleet);
     els.zoneFilter?.addEventListener('change', renderFleet);
     els.statusFilter?.addEventListener('change', renderFleet);
+    els.cotisationFilter?.addEventListener('change', renderFleet);
+    els.tracteurFilter?.addEventListener('change', renderFleet);
+    els.sortFilter?.addEventListener('change', renderFleet);
+    els.cardModeButton?.addEventListener('click', () => { state.fleetView = 'cards'; renderFleet(); });
+    els.compactModeButton?.addEventListener('click', () => { state.fleetView = 'compact'; renderFleet(); });
     els.zoneSelect?.addEventListener('change', populateSlotSelect);
     els.boatForm?.addEventListener('submit', handleBoatSubmit);
     els.deleteBoatButton?.addEventListener('click', deleteCurrentBoat);

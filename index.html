@@ -221,6 +221,9 @@
                     <span class="legend-pill occupied">Occupé</span>
                     <span class="legend-pill selected">Sélectionné</span>
                     <span class="legend-pill plan-status-maint">Maintenance</span>
+                    <span class="legend-pill plan-status-hiver">Hivernage ❄️</span>
+                    <span class="legend-pill plan-status-cotis">Cotis. ⚠️</span>
+                    <span class="legend-pill plan-status-tract">Tracteur 🚜</span>
                   </div>
                 </div>
               </div>
@@ -262,10 +265,12 @@
               </div>
             </div>
 
+            <div class="fleet-stats-bar" id="fleetStatsBar"></div>
+
             <div class="toolbar-grid sticky-toolbar-mobile">
               <div class="field-group grow">
                 <label for="searchInput">Recherche</label>
-                <input id="searchInput" type="search" placeholder="Nom du bateau, propriétaire, licence, téléphone..." />
+                <input id="searchInput" type="search" placeholder="Nom, propriétaire, licence, téléphone, cotisation..." />
               </div>
               <div class="field-group">
                 <label for="zoneFilter">Zone</label>
@@ -276,9 +281,36 @@
                 <select id="statusFilter">
                   <option value="all">Tous les statuts</option>
                   <option value="actif">Actif</option>
-                  <option value="hivernage">Hivernage</option>
+                  <option value="hivernage">Hivernage ❄️</option>
                   <option value="maintenance">Maintenance</option>
                   <option value="archive">Archivé</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="cotisationFilter">Cotisation</label>
+                <select id="cotisationFilter">
+                  <option value="all">Toutes</option>
+                  <option value="ok">À jour ✅</option>
+                  <option value="nok">Non à jour ⚠️</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="tracteurFilter">Tracteur</label>
+                <select id="tracteurFilter">
+                  <option value="all">Tous</option>
+                  <option value="yes">Descente tracteur 🚜</option>
+                  <option value="no">Sans tracteur</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="sortFilter">Tri</label>
+                <select id="sortFilter">
+                  <option value="slot">Place croissante</option>
+                  <option value="slot_desc">Place décroissante</option>
+                  <option value="name">Nom A→Z</option>
+                  <option value="owner">Propriétaire A→Z</option>
+                  <option value="cotisation">Cotisation non à jour d'abord</option>
+                  <option value="hivernage">Hivernage d'abord</option>
                 </select>
               </div>
             </div>
